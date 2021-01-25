@@ -11,4 +11,4 @@ print_from_to_by(From, To, By) when From + By =< To ->
   io:format("~p~n", [From]),
   print_from_to_by(From + By, To, By);
 print_from_to_by(From, To, By) when From + By >= To -> 
-  io:format("~p~n", [From]).  
+  io:format("~p~n", [From]). 
