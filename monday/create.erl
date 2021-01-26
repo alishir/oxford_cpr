@@ -25,6 +25,15 @@ create_base_case_n(M, N) -> % not tail recursive
 % create_base_case_n_tail(N, N, Buff) -> [N | Buff];
 % create_base_case_n_tail(M, N, Buff) ->  
 %   create_base_case_n_tail(M + 1, N, [M | Buff]).
+
+% tail-recursive but bad because use append
+% create_base_case_n_tail_append(N) ->
+%   create_base_case_n_tail_append(1, N, []).
+% create(M, N, Acc) when M > N ->
+%   Acc;
+% create(M, N, Buff) ->
+%   create(M+1, N, Buff ++ [M]).
+
 reverse_create(1) -> [1];
 reverse_create(N) -> [N | reverse_create(N-1)]. 
 %% reverse_create(N) -> [N] ++ reverse_create(N-1).
