@@ -13,7 +13,7 @@ stop() ->
   ok.
 
 write(Key, Element) ->
-  server ! {write, {Key, Element}},
+  server ! {write, Key, Element},
   ok.
 
 delete(Key) ->
@@ -23,13 +23,13 @@ delete(Key) ->
 read(Key) ->
   server ! {read, Key, self()},
   receive
-    Reply -> Reply
+    {read_result, Response} -> Response
   end.
 
 match(Element) ->
   server ! {match, Element, self()},
   receive
-    Reply -> Reply
+    {match_result, Response} -> Response
   end.
 
 %%% Server
@@ -49,18 +49,24 @@ server_init() ->
 server_loop(Db) ->
   receive
     stop -> ok;
-    {write, {Key, Element}} -> 
+    {write, Key, Element} -> 
       server_loop(db:write(Key, Element, Db));
     {delete, Key} ->
       server_loop(db:delete(Key, Db));
     {read, Key, Client} -> 
       Response = db:read(Key, Db), % server blocked whilst waiting
-      Client ! Response, % Response = {error, instance} or {ok, Element}.
+      Client ! {read_result, Response}, % Response = {error, instance} or {ok, Element}.
       server_loop(Db);
     {match, Element, Client} ->
       Response = db:match(Element, Db), % server blocked whilst waiting
-      Client ! Response,
+      Client ! {match_result, Response},
       server_loop(Db)
+    % meta programming approach
+    % {Operation, From, Pattern} 
+    %   when Operation == read orelse Operation == match ->
+    %   Result = db:Operation(Pattern, State),
+    %   From ! {Operation, Result},
+    %   loop(State)
   end.
 
 server_stop() ->
