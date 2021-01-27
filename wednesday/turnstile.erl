@@ -4,8 +4,8 @@
 
 % key choices
 % init = 
-% state = 
-% msg = 
+% State = MoneyInserted & FeeRequired 
+% msg = atom_id & Requester or Coin
 % fsm = closed -> open by coin, open -> closed by enter
 
 %%% API
@@ -25,28 +25,33 @@ enter(Pid) ->
 
 %%% IMPLEMENTATION
 init() ->
-  State = [], 
-  close_loop(State).
+  MoneyInserted = 0,
+  FeeRequired = 5, 
+  close_loop(MoneyInserted, FeeRequired).
 
-close_loop(State) ->
+close_loop(MoneyInserted, FeeRequired) ->
   io:format("Closed~n"),
   receive
     {coin, Coin} ->
-      open_loop(State);
+      if 
+        MoneyInserted + Coin >= FeeRequired ->
+          open_loop(0, FeeRequired); % no change
+        true ->
+          close_loop(MoneyInserted + Coin, FeeRequired)
+      end;
     {enter, Requester} ->
-      io:format("Msg: ~p ~p~n", [enter, Requester]),
+      % io:format("Msg: ~p ~p~n", [enter, Requester]),
       Requester ! {enter_reply, {error, access_denied}},
-      close_loop(State)
+      close_loop(MoneyInserted, FeeRequired)
   end.
 
-open_loop(State) ->
+open_loop(_, FeeRequired)->
   io:format("Open~n"),
   receive
     {enter, Requester} -> 
-      io:format("Msg: ~p ~p~n", [enter, Requester]),
+      % io:format("Msg: ~p ~p~n", [enter, Requester]),
       Requester ! {enter_reply, ok},
-      close_loop(State)
-  after 5000
-    close_loop(State)
+      close_loop(0, FeeRequired)
+  after 5000 ->
+    close_loop(0, FeeRequired)
   end.
-
