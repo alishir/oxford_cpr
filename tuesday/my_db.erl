@@ -1,6 +1,6 @@
 -module(my_db).
 -export([start/0, stop/0, write/2, delete/1, read/1, match/1]).
--export([server_init/0]).
+-export([server_init/0, server_start/0]).
 -import(db, [new/0, destroy/1, write/3, delete/2, read/2, match/2]).
 
 %%% Client
@@ -38,13 +38,11 @@ match(Element) ->
 % receive = db method & args
 % init args = na
 server_start() ->
-  code:add_path("C:/Users/lao8n/OneDrive/Documents/oxford_cpr/monday"),
   register(server, spawn(?MODULE, server_init, [])),
   ok.
 
 server_init() -> 
-  Db = db:new(),
-  server_loop(Db).
+  server_loop(db:new()).
 
 server_loop(Db) ->
   receive
@@ -54,12 +52,10 @@ server_loop(Db) ->
     {delete, Key} ->
       server_loop(db:delete(Key, Db));
     {read, Key, Client} -> 
-      Response = db:read(Key, Db), % server blocked whilst waiting
-      Client ! {read_result, Response}, % Response = {error, instance} or {ok, Element}.
+      Client ! {read_result, db:read(Key, Db)}, % Response = {error, instance} or {ok, Element}.
       server_loop(Db);
     {match, Element, Client} ->
-      Response = db:match(Element, Db), % server blocked whilst waiting
-      Client ! {match_result, Response},
+      Client ! {match_result, db:match(Element, Db)},
       server_loop(Db)
     % meta programming approach
     % {Operation, From, Pattern} 

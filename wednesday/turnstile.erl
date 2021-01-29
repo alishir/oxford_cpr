@@ -10,8 +10,7 @@
 
 %%% API
 start() ->
-  Pid = spawn(?MODULE, init, []),
-  {ok, Pid}.
+  {ok, spawn(?MODULE, init, [])}.
 
 insert_coin(Pid, Coin) ->
   Pid ! {coin, Coin},
@@ -25,33 +24,32 @@ enter(Pid) ->
 
 %%% IMPLEMENTATION
 init() ->
-  MoneyInserted = 0,
-  FeeRequired = 5, 
-  close_loop(MoneyInserted, FeeRequired).
+  close(MoneyInserted=0, FeeRequired=5).
 
-close_loop(MoneyInserted, FeeRequired) ->
+close(MoneyInserted, FeeRequired) ->
   io:format("Closed~n"),
   receive
     {coin, Coin} ->
+      NewMoneyInserted = MoneyInserted + Coin
       if 
-        MoneyInserted + Coin >= FeeRequired ->
-          open_loop(0, FeeRequired); % no change
+        NewMoneyInserted >= FeeRequired ->
+          open(0, FeeRequired); % no change
         true ->
-          close_loop(MoneyInserted + Coin, FeeRequired)
+          close(NewMoneyInserted, FeeRequired)
       end;
     {enter, Requester} ->
       % io:format("Msg: ~p ~p~n", [enter, Requester]),
       Requester ! {enter_reply, {error, access_denied}},
-      close_loop(MoneyInserted, FeeRequired)
+      close(MoneyInserted, FeeRequired)
   end.
 
-open_loop(_, FeeRequired)->
+open(_, FeeRequired)->
   io:format("Open~n"),
   receive
     {enter, Requester} -> 
       % io:format("Msg: ~p ~p~n", [enter, Requester]),
       Requester ! {enter_reply, ok},
-      close_loop(0, FeeRequired)
+      close(0, FeeRequired)
   after 5000 ->
-    close_loop(0, FeeRequired)
+    close(0, FeeRequired)
   end.
