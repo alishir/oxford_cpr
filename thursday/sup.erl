@@ -3,7 +3,7 @@
 -export([init/0]).
 
 %% supervisor
-% state = [{childPid, restartNum}]
+% state = map of children, k = {Child, ChildMonitor}, v = {Client, AttemptsRemaining, Mod, Func, Args} 
 
 %% API
 start(SupName) ->
