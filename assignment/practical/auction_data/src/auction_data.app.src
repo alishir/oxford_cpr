@@ -1,15 +1,11 @@
 {application, auction_data,
- [{description, "An OTP application"},
+ [{description, "Auction Data API"},
   {vsn, "0.1.0"},
-  {registered, []},
-  {mod, {auction_data_app, []}},
   {applications,
    [kernel,
-    stdlib
+    stdlib,
+    mnesia
    ]},
-  {env,[]},
-  {modules, []},
-
-  {licenses, ["Apache 2.0"]},
-  {links, []}
+  {modules, [auction_data]},
+  {licenses, ["Apache 2.0"]}
  ]}.

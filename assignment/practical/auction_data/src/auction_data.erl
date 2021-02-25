@@ -6,7 +6,10 @@
 %%%----------------------------------------------------------------------------
 
 -module(auction_data).
+-behaviour(application).
 
+-export([start/2, stop/1]).
+-export([install/1]).
 -export([
   create_auction/0, 
   add_items/2, 
@@ -23,31 +26,67 @@
 -type unknown_item() :: any().
 -type unknown_auction() :: any().
 
+-record(auction_ids, {auction_id, 
+                      locked}).
+-record(auction_data, {item_id,
+                       auction_id,
+                       item, 
+                       desc,
+                       bid}).
+
+%%% Setup ---------------------------------------------------------------------
+start(normal, []) ->
+  mnesia:wait_for_tables([auction_ids, 
+                          auction_data], 5000).
+  % auction_data_sup:start_link().
+
+stop(_) -> ok.  
+
+install(Nodes) ->
+  ok = mnesia:create_schema(Nodes),
+  rpc:multicall(Nodes, application, start, [mnesia]),
+  mnesia:create_table(auction_ids,
+                      [{type, set},
+                       {attributes, record_info(fields, auction_ids)},
+                       {disc_copies, Nodes}]),
+  mnesia:create_table(auction_data,
+                      [{attributes, record_info(fields, auction_data)},
+                       {disc_copies, Nodes},
+                       {type, ordered_set}]),
+  rpc:multicall(Nodes, application, stop, [mnesia]).
+
+%%% API -----------------------------------------------------------------------
+
 %% @doc Creates a new auction and all associated data structures for it.
 -spec create_auction() -> {ok, reference()}.
 create_auction() ->
-  % auction_table_name is unused
-  Tid = ets:new(auction_table_name, [ordered_set, protected]),
-  {ok, Tid}.
+  AuctionId = make_ref(),
+  F = fun() ->
+    mnesia:write(#auction_ids{auction_id=AuctionId, locked=false})
+  end,
+  mnesia:activity(transaction, F),
+  {ok, AuctionId}.
 
 %% @doc Adds items to a given auction.
 -spec add_items(reference(), [item_info()]) -> 
   {ok, [{itemid(), nonempty_string()}]} | {error, unknown_auction()}.
 add_items(AuctionId, ItemsList) ->
-  ItemsIdList = lists:map(
-    fun({Item, Desc, Bid}) -> 
-      {{erlang:monotonic_time(), make_ref()}, Item, Desc, Bid} end,
-    ItemsList),
-  try ets:insert(AuctionId, ItemsIdList) of
-    true -> {ok, lists:map(fun({ItemId, Item, _, _}) -> {ItemId, Item} end, ItemsIdList)}
-  catch
-    error:badarg -> {error, unknown_auction}
-  end.
+  
+  ok.
+  % ItemsIdList = lists:map(
+  %   fun({Item, Desc, Bid}) -> 
+  %     {{erlang:monotonic_time(), make_ref()}, Item, Desc, Bid} end,
+  %   ItemsList),
+  % try ets:insert(AuctionId, ItemsIdList) of
+  %   true -> {ok, lists:map(fun({ItemId, Item, _, _}) -> {ItemId, Item} end, ItemsIdList)}
+  % catch
+  %   error:badarg -> {error, unknown_auction}
+  % end.
 
 %% @doc Gets a list of auctions
 -spec get_auctions() -> {ok, [reference()]}.
 get_auctions() ->
-  {ok, ets:all()}.
+  ok.
 
 %% @doc Gets a list of items for a specific auction. The list is in 
 %% lexicographical order

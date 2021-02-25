@@ -2,8 +2,8 @@
 -behaviour(application).
 -include_lib("stdlib/include/ms_transform.hrl").
 -include_lib("stdlib/include/qlc.hrl").
--export([start/2, stop/1]).
 -export([install/1]).
+-export([start/2, stop/1]).
 -export([add_friend/4, friend_by_name/1, friend_by_expertise/1,
          add_service/4, debts/1]).
 -export([add_enemy/2, find_enemy/1, enemy_killed/1]).
