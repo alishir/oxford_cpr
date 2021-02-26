@@ -163,6 +163,24 @@ remove_auction(AuctionId) ->
 
 %% @doc Removes an item from an auction
 -spec remove_item(reference(), itemid()) ->
-  ok | {error, unknown_item(), unknown_item()}.
-remove_item(AuctionId, Item) ->
-  ok.
+  ok | {error, unknown_item(), unknown_auction()}.
+remove_item(AuctionId, ItemId) ->
+  F = fun() ->
+    AuctionInfo = mnesia:read({auction_ids, AuctionId}),
+    case AuctionInfo of
+      [] ->
+        {error, unknown_auction};
+      [{_, true}] -> 
+        {error, unknown_auction};
+      [_] ->
+        ItemInfo = mnesia:read({auction_data, ItemId}),
+        case ItemInfo of
+          [{auction_data, ItemId, AuctionId, _, _, _}] ->
+            mnesia:delete({auction_data, ItemId}),
+            ok;
+          [] ->
+            {error, unknown_item}
+        end
+    end
+  end,
+  mnesia:activity(transaction, F).
