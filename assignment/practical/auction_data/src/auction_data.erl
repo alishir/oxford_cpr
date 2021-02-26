@@ -60,33 +60,50 @@ install(Nodes) ->
 %% @doc Creates a new auction and all associated data structures for it.
 -spec create_auction() -> {ok, reference()}.
 create_auction() ->
-  AuctionId = make_ref(),
   F = fun() ->
-    mnesia:write(#auction_ids{auction_id=AuctionId, locked=false})
+    AuctionId = make_ref(),
+    mnesia:write(#auction_ids{auction_id=AuctionId, locked=false}),
+    {ok, AuctionId}
   end,
-  mnesia:activity(transaction, F),
-  {ok, AuctionId}.
+  mnesia:activity(transaction, F).
 
 %% @doc Adds items to a given auction.
 -spec add_items(reference(), [item_info()]) -> 
   {ok, [{itemid(), nonempty_string()}]} | {error, unknown_auction()}.
 add_items(AuctionId, ItemsList) ->
-  
-  ok.
-  % ItemsIdList = lists:map(
-  %   fun({Item, Desc, Bid}) -> 
-  %     {{erlang:monotonic_time(), make_ref()}, Item, Desc, Bid} end,
-  %   ItemsList),
-  % try ets:insert(AuctionId, ItemsIdList) of
-  %   true -> {ok, lists:map(fun({ItemId, Item, _, _}) -> {ItemId, Item} end, ItemsIdList)}
-  % catch
-  %   error:badarg -> {error, unknown_auction}
-  % end.
+  F = fun() ->
+    AuctionInfo = mnesia:read({auction_ids, AuctionId}),
+    case AuctionInfo of
+      [] ->
+        {error, unknown_auction};
+      [{_, true}] -> 
+        {error, unknown_auction};
+      [_] ->
+        ItemsIdList = lists:foldl(
+          fun({Item, Desc, Bid}, Output) -> 
+            ItemId = {erlang:monotonic_time(), make_ref()},
+            mnesia:write(#auction_data{item_id=ItemId,
+                                       auction_id=AuctionId,
+                                       item=Item,
+                                       desc=Desc,
+                                       bid=Bid}),
+            [{ItemId, Item}|Output] 
+          end,
+          [],
+          ItemsList),
+        {ok, ItemsIdList}
+    end
+  end,
+  mnesia:activity(transaction, F).
 
 %% @doc Gets a list of auctions
 -spec get_auctions() -> {ok, [reference()]}.
 get_auctions() ->
-  ok.
+  F = fun() ->
+    Auctions = mnesia:all_keys(auction_ids),
+    {ok, Auctions}
+  end,
+  mnesia:activity(transaction, F).
 
 %% @doc Gets a list of items for a specific auction. The list is in 
 %% lexicographical order
@@ -99,12 +116,34 @@ get_items(AuctionId) ->
 -spec get_item(reference(), itemid()) -> 
   {ok, itemid_info()} | {error, unknown_item() | unknown_auction()}.
 get_item(AuctionId, ItemId) ->
-  ok.
+  F = fun() ->
+    case mnesia:read({auction_ids, AuctionId}) =:= [] of
+      true ->
+        {error, unknown_auction};
+      false ->
+        case mnesia:read({auction_data, ItemId}) of 
+          [{auction_data, ItemId, AuctionId, Item, Desc, Bid}] ->
+            {ok, {Item, Desc, Bid}};
+          _ ->
+            {error, unknown_item}
+        end
+    end
+  end,
+  mnesia:activity(transaction, F).
 
 %% @doc Removes an auction
 -spec remove_auction(reference()) -> ok | {error, unknown_auction()}.
 remove_auction(AuctionId) ->
-  ok.
+  F = fun() ->
+    case mnesia:read({auction_ids, AuctionId}) =:= [] of
+      true ->
+        {error, unknown_auction};
+      false ->
+        mnesia:delete({auction_ids, AuctionId})
+        % TODO - should we delete Item information as well?        
+    end
+  end,
+  mnesia:activity(transaction, F).
 
 %% @doc Removes an item from an auction
 -spec remove_item(reference(), itemid()) ->

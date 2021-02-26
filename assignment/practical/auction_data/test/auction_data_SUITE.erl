@@ -8,16 +8,18 @@
          end_per_suite/1,
          init_per_testcase/2, 
          end_per_testcase/2]).
--export([test_create_auction/1
-        %  test_add_items/1, 
-        %  test_get_auctions/1
-]).
+-export([test_create_auction/1,
+         test_add_items/1,
+         test_get_auctions/1,
+         test_get_item/1,
+         test_remove_auction/1]).
 
 all() ->
-  [test_create_auction
-  %  test_add_items, 
-  %  test_get_auctions
-  ].
+  [test_create_auction,
+   test_add_items,
+   test_get_auctions,
+   test_get_item,
+   test_remove_auction].
 
 % suite setup & tear down
 init_per_suite(Config) ->
@@ -36,28 +38,56 @@ end_per_suite(_Config) ->
   ok.
 
 % testcase setup & tear down
+init_per_testcase(test_create_auction, Config) ->
+  Response = auction_data:create_auction(),
+  [{response, Response} | Config];
+init_per_testcase(test_get_auctions, Config) ->
+  {ok, AuctionId1} = auction_data:create_auction(),
+  {ok, AuctionId2} = auction_data:create_auction(),
+  [{auctions, [AuctionId1, AuctionId2]} | Config];
+init_per_testcase(test_get_item, Config) ->
+  {ok, AuctionId} = auction_data:create_auction(),
+  AuctionItems = [{"book", "fiction", 0}, {"hat", "blue cap", 1}],
+  {ok, [{ItemId1, "hat"}, {ItemId2, "book"}]} = 
+    auction_data:add_items(AuctionId, AuctionItems),
+  [{auction, AuctionId} | [{itemids, [ItemId1, ItemId2]} | Config]];
 init_per_testcase(_, Config) ->
   {ok, AuctionId} = auction_data:create_auction(),
-  [{table, AuctionId} | Config].
+  [{auction, AuctionId} | Config].
 
-end_per_testcase(_, _Config) ->
-  ok.
+end_per_testcase(_, Config) ->
+  AuctionId = ?config(auction, Config),
+  auction_data:remove_auction(AuctionId).
 
 % tests
-test_create_auction(_Config) ->
-  {ok, AuctionId} = auction_data:create_auction().
+test_create_auction(Config) ->
+  {ok, AuctionId} = ?config(response, Config).
   
 test_add_items(Config) ->
-  AuctionId = ?config(table, Config),
+  AuctionId = ?config(auction, Config),
   AuctionItems = [{"book", "fiction", 0}, {"hat", "blue cap", 1}],
   % test_add_items works for list of items
-  {ok, [{ItemId1, "book"}, {ItemId2, "hat"}]} = 
+  {ok, [{ItemId1, "hat"}, {ItemId2, "book"}]} = 
     auction_data:add_items(AuctionId, AuctionItems),
   % and it returns the correct error if the AuctionId is invalid
-  InvalidAuctionId = 1000,
+  InvalidAuctionId = make_ref(),
   {error, unknown_auction} = auction_data:add_items(InvalidAuctionId, AuctionItems).
 
-% test_get_auctions(Config) ->
-%   AuctionId1 = ?config(table, Config),
-%   {ok, AuctionId2} = auction_data:create_auction(),
-%   {ok, [AuctionId1, AuctionId2]} = auction_data:get_auctions().
+test_get_auctions(Config) ->
+  Auctions = ?config(auctions, Config),
+  {ok, AuctionIdList} = auction_data:get_auctions(),
+  lists:sort(Auctions) =:= lists:sort(AuctionIdList).
+
+test_get_item(Config) ->
+  AuctionId = ?config(auction, Config),
+  [ItemId1, ItemId2] = ?config(itemids, Config),
+  {ok, {"hat", "blue cap", 1}} = auction_data:get_item(AuctionId, ItemId1),
+  {ok, {"book", "fiction", 0}} = auction_data:get_item(AuctionId, ItemId2),
+  InvalidAuctionId = make_ref(),
+  {error, unknown_auction} = auction_data:get_item(InvalidAuctionId, ItemId1),
+  InvalidItemId = {erlang:monotonic_time(), make_ref()},
+  {error, unknown_item} = auction_data:get_item(AuctionId, InvalidItemId).
+
+test_remove_auction(Config) ->
+  AuctionId = ?config(auction, Config),
+  ok = auction_data:remove_auction(AuctionId).
