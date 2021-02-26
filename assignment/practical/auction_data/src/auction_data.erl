@@ -110,7 +110,23 @@ get_auctions() ->
 -spec get_items(reference()) -> 
   {ok, [itemid()]} | {error, unknown_auction()}.
 get_items(AuctionId) ->
-  ok.
+  F1 = fun(AuctionData, Output) ->
+    case AuctionData of
+      {auction_data, ItemId, AuctionId, _, _, _} -> 
+        [ItemId | Output];
+      _ ->
+        Output
+    end
+  end,
+  F2 = fun() ->
+    case mnesia:read({auction_ids, AuctionId}) =:= [] of
+      true ->
+        {error, unknown_auction};
+      false ->
+        mnesia:foldr(F1, [], auction_data)
+    end
+  end,
+  mnesia:activity(transaction, F2).
 
 %% @doc Gets item specific information 
 -spec get_item(reference(), itemid()) -> 

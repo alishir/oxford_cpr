@@ -11,6 +11,7 @@
 -export([test_create_auction/1,
          test_add_items/1,
          test_get_auctions/1,
+         test_get_items/1,
          test_get_item/1,
          test_remove_auction/1]).
 
@@ -18,6 +19,7 @@ all() ->
   [test_create_auction,
    test_add_items,
    test_get_auctions,
+   test_get_items,
    test_get_item,
    test_remove_auction].
 
@@ -37,7 +39,7 @@ end_per_suite(_Config) ->
   application:stop(mnesia),
   ok.
 
-% testcase setup & tear down
+% testcase setup
 init_per_testcase(test_create_auction, Config) ->
   Response = auction_data:create_auction(),
   [{response, Response} | Config];
@@ -45,6 +47,18 @@ init_per_testcase(test_get_auctions, Config) ->
   {ok, AuctionId1} = auction_data:create_auction(),
   {ok, AuctionId2} = auction_data:create_auction(),
   [{auctions, [AuctionId1, AuctionId2]} | Config];
+init_per_testcase(test_get_items, Config) ->
+  {ok, AuctionId1} = auction_data:create_auction(),
+  {ok, AuctionId2} = auction_data:create_auction(),
+  Auction1Items = [{"book", "fiction", 0}, 
+                  {"hat", "blue cap", 1}, 
+                  {"plate", "ceramic", 3}],
+  {ok, [{ItemId1, "plate"}, {ItemId2, "hat"}, {ItemId3, "book"}]} = 
+    auction_data:add_items(AuctionId1, Auction1Items),
+  Auction2Items = [{"phone", "black", 0}],
+  {ok, [{ItemId4, "phone"}]} = 
+    auction_data:add_items(AuctionId2, Auction2Items),
+  [{auction, AuctionId1} | [{itemids, [ItemId1, ItemId2, ItemId3]} | Config]];
 init_per_testcase(test_get_item, Config) ->
   {ok, AuctionId} = auction_data:create_auction(),
   AuctionItems = [{"book", "fiction", 0}, {"hat", "blue cap", 1}],
@@ -55,6 +69,7 @@ init_per_testcase(_, Config) ->
   {ok, AuctionId} = auction_data:create_auction(),
   [{auction, AuctionId} | Config].
 
+% testcase tear down
 end_per_testcase(_, Config) ->
   AuctionId = ?config(auction, Config),
   auction_data:remove_auction(AuctionId).
@@ -77,6 +92,15 @@ test_get_auctions(Config) ->
   Auctions = ?config(auctions, Config),
   {ok, AuctionIdList} = auction_data:get_auctions(),
   lists:sort(Auctions) =:= lists:sort(AuctionIdList).
+
+test_get_items(Config) ->
+  AuctionId = ?config(auction, Config),
+  ItemIds = ?config(itemids, Config),
+  GottenItems = auction_data:get_items(AuctionId),
+  ItemIdsSorted = lists:sort(ItemIds),
+  ItemIdsSorted = GottenItems,
+  InvalidAuctionId = make_ref(),
+  {error, unknown_auction} = auction_data:get_items(InvalidAuctionId).
 
 test_get_item(Config) ->
   AuctionId = ?config(auction, Config),
