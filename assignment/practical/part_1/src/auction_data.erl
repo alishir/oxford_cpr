@@ -23,8 +23,8 @@
 -type itemid() :: {integer(), reference()}.
 -type item_info() :: {nonempty_string(), nonempty_string(), non_neg_integer()}.
 -type itemid_info() :: {itemid(), nonempty_string(), non_neg_integer()}.
--type unknown_item() :: any().
--type unknown_auction() :: any().
+-type unknown_item() :: term().
+-type unknown_auction() :: term().
 
 -record(auction_ids, {auction_id, 
                       locked}).
@@ -55,7 +55,7 @@ install(Nodes) ->
                        {type, ordered_set}]),
   rpc:multicall(Nodes, application, stop, [mnesia]).
 
-%%% API -----------------------------------------------------------------------
+%%% Auction Data API ----------------------------------------------------------
 
 %% @doc Creates a new auction and all associated data structures for it.
 -spec create_auction() -> {ok, reference()}.
@@ -123,7 +123,7 @@ get_items(AuctionId) ->
       true ->
         {error, unknown_auction};
       false ->
-        mnesia:foldr(F1, [], auction_data)
+        {ok, mnesia:foldr(F1, [], auction_data)}
     end
   end,
   mnesia:activity(transaction, F2).

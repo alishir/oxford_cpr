@@ -12,6 +12,7 @@
          test_add_items/1,
          test_get_auctions/1,
          test_get_items/1,
+         test_get_items_and_lock_auction/1,
          test_get_item/1,
          test_remove_auction/1,
          test_remove_item/1]).
@@ -21,6 +22,7 @@ all() ->
    test_add_items,
    test_get_auctions,
    test_get_items,
+   test_get_items_and_lock_auction,
    test_get_item,
    test_remove_auction,
    test_remove_item].
@@ -63,6 +65,19 @@ init_per_testcase(test_get_items, Config) ->
     auction_data:add_items(AuctionId2, Auction2Items),
   [{auction, [AuctionId1, AuctionId2]} | 
     [{itemids, [ItemId1, ItemId2, ItemId3]} | Config]];
+init_per_testcase(test_get_items_and_lock_auction, Config) ->
+  {ok, AuctionId1} = auction_data:create_auction(),
+  {ok, AuctionId2} = auction_data:create_auction(),
+  Auction1Items = [{"book", "fiction", 0}, 
+                  {"hat", "blue cap", 1}, 
+                  {"plate", "ceramic", 3}],
+  {ok, [{ItemId1, "plate"}, {ItemId2, "hat"}, {ItemId3, "book"}]} = 
+    auction_data:add_items(AuctionId1, Auction1Items),
+  Auction2Items = [{"phone", "black", 0}],
+  {ok, [{_, "phone"}]} = 
+    auction_data:add_items(AuctionId2, Auction2Items),
+  [{auction, [AuctionId1, AuctionId2]} | 
+    [{itemids, [ItemId1, ItemId2, ItemId3]} | Config]];
 init_per_testcase(test_get_item, Config) ->
   {ok, AuctionId} = auction_data:create_auction(),
   AuctionItems = [{"book", "fiction", 0}, {"hat", "blue cap", 1}],
@@ -88,6 +103,10 @@ end_per_testcase(test_get_items, Config) ->
   [AuctionId1, AuctionId2] = ?config(auction, Config),
   ok = auction_data:remove_auction(AuctionId1), 
   ok = auction_data:remove_auction(AuctionId2);
+end_per_testcase(test_get_items_and_lock_auction, Config) ->
+  [AuctionId1, AuctionId2] = ?config(auction, Config),
+  ok = auction_data:remove_auction(AuctionId1), 
+  ok = auction_data:remove_auction(AuctionId2);
 end_per_testcase(test_remove_auction, _Config) ->
   ok;
 end_per_testcase(_, Config) ->
@@ -104,7 +123,7 @@ test_add_items(Config) ->
   % test_add_items works for list of items
   {ok, [{ItemId1, "hat"}, {ItemId2, "book"}]} = 
     auction_data:add_items(AuctionId, AuctionItems),
-  GottenItems = auction_data:get_items(AuctionId),
+  {ok, GottenItems} = auction_data:get_items(AuctionId),
   GottenItems = lists:sort([ItemId1, ItemId2]),
   % and it returns the correct error if the AuctionId is invalid
   InvalidAuctionId = make_ref(),
@@ -119,11 +138,20 @@ test_get_auctions(Config) ->
 test_get_items(Config) ->
   [AuctionId1, _] = ?config(auction, Config),
   ItemIds = ?config(itemids, Config),
-  GottenItems = auction_data:get_items(AuctionId1),
+  {ok, GottenItems} = auction_data:get_items(AuctionId1),
   ItemIdsSorted = lists:sort(ItemIds),
   ItemIdsSorted = GottenItems,
   InvalidAuctionId = make_ref(),
   {error, unknown_auction} = auction_data:get_items(InvalidAuctionId).
+
+test_get_items_and_lock_auction(Config) ->
+  [AuctionId1, _] = ?config(auction, Config),
+  ItemIds = ?config(itemids, Config),
+  {ok, GottenItems} = auction_data:get_items_and_lock_auction(AuctionId1),
+  ItemIdsSorted = lists:sort(ItemIds),
+  ItemIdsSorted = GottenItems,
+  InvalidAuctionId = make_ref(),
+  {error, unknown_auction} = auction_data:get_items_and_lock_auction(InvalidAuctionId).
 
 test_get_item(Config) ->
   AuctionId = ?config(auction, Config),
