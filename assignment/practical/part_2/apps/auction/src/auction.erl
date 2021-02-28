@@ -10,11 +10,13 @@
 -behaviour(gen_statem).
 
 -export([start_link/1, bid/4]).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-         code_change/3, terminate/2]).
+-export([auction_item/3, auction_ended/3]).
+-export([init/1, callback_mode/0, terminate/3]).
+-export([get_starting_bid/3, check_for_invalid_bid/8, check_leading_bid/6, 
+  save_winning_bidder/4, get_next_itemid/1]).
 
 -type itemid() :: {integer(), reference()}.
--type bidderid() :: {reference()}.
+-type bidderid() :: {nonempty_string(), reference()}.
 
 %%% Auction API ---------------------------------------------------------------
 %% @doc Creates a gen_statem process that is linked to the calling process 
@@ -29,7 +31,7 @@ start_link(AuctionId) ->
   case auction_data:get_items_and_lock_auction(AuctionId) of
     % auction exists but no items so no point in having the auction
     {ok, []} ->
-      {error, unknown_auction}
+      {error, unknown_auction};
     % at least one item
     {ok, [HeadItemId | TailItemIds]} ->
       % returns {ok, Pid} if successful
@@ -61,7 +63,7 @@ init([AuctionId, HeadItemId, TailItemIds]) ->
            starting_bid => undefined,
            leading_bid => undefined,
            leading_bidder => undefined},
-  {ok, State, Data}.
+  {ok, State, Data, [{state_timeout, 10000, next_item}]}.
 
 callback_mode() ->
   state_functions.
@@ -73,11 +75,11 @@ auction_item({call,From},
              {bid, BidAuctionId, BidItemId, Bid, Bidder},
              #{auctionid := AuctionId, 
                current_itemid := CurrentItemId,
-               remaining_itemids := RemainingItemIds,
+               remaining_itemids := _RemainingItemIds,
                auctioned_itemids := AuctionedItemIds,
                starting_bid := StartingBid,
                leading_bid := LeadingBid,
-               leading_bidder := LeadingBidder} = Data) ->
+               leading_bidder := _LeadingBidder} = Data) ->
   % if new item need to get starting_bid
   NewStartingBid = get_starting_bid(AuctionId, CurrentItemId, StartingBid),
   % check that bid is valid
@@ -85,12 +87,11 @@ auction_item({call,From},
     AuctionId, BidAuctionId, CurrentItemId, BidItemId, AuctionedItemIds),
   if 
     ErrorState =/= undefined -> 
-      ErrorState % reply with {error, ...}
+      ErrorState; % reply with {error, ...}
   % check if bid is leading
     true -> 
-      check_leading_bid(Data, Bid, Bidder, StartingBid, LeadingBid, LeadingBidder)
-  end.
-
+      check_leading_bid(Data, From, Bid, Bidder, StartingBid, LeadingBid)
+  end;
 %% gen_statem calls {state_timeout, Time, EventContent}
 auction_item(state_timeout, 
              next_item,
@@ -98,17 +99,20 @@ auction_item(state_timeout,
                current_itemid := CurrentItemId,
                remaining_itemids := RemainingItemIds,
                auctioned_itemids := AuctionedItemIds,
-               starting_bid := StartingBid,
+               starting_bid := _StartingBid,
                leading_bid := LeadingBid,
                leading_bidder := LeadingBidder} = Data) ->
   save_winning_bidder(AuctionId, CurrentItemId, LeadingBid, LeadingBidder),
   {NewCurrentItemId, NewRemainingItemIds} = get_next_itemid(RemainingItemIds),
   if 
     NewCurrentItemId =:= undefined ->
-      % go to auction_ended
+      {next_state,
+       auction_ended,
+       Data};
     true -> 
       % new item so set 
-      {auction_item, 
+      {next_state,
+       auction_item, 
        Data#{% auctionid is the same
              current_itemid := NewCurrentItemId,
              remaining_itemids := NewRemainingItemIds,
@@ -116,8 +120,15 @@ auction_item(state_timeout,
              starting_bid := undefined,
              leading_bid := undefined,
              leading_bidder := undefined}, 
-       [{state_timeout, 10000, next_item}]}.
+       [{state_timeout, 10000, next_item}]}
+  end.
 
+auction_ended({call,From}, 
+              {bid, _, _, _, _},
+              Data) ->
+  {keep_state,
+   Data,
+   [{reply, From, {error, auction_ended}}]}.
 
 %%% Helper functions ----------------------------------------------------------
 
@@ -135,61 +146,68 @@ get_starting_bid(AuctionId, CurrentItemId, StartingBid) ->
 
 check_for_invalid_bid(Data, NewStartingBid, From, AuctionId, BidAuctionId, 
   CurrentItemId, BidItemId, AuctionedItemIds) ->
-  if 
-    AuctionId =/= BidAuctionId -> 
-      {keep_state, 
-       Data#{starting_bid := NewStartingBid}, 
-       [{reply, From, {error, invalid_auction}}]};
-    lists:member(BidItemId, AuctionedItemIds) ->
+  % lists:member cannot be in a guard expression
+  case lists:member(BidItemId, AuctionedItemIds) of
+    true ->
       {keep_state, 
        Data#{starting_bid := NewStartingBid}, 
        [{reply, From, {error, item_already_sold}}]};
-    CurrentItemId =/= BidItemId ->
-      {keep_state, 
-       Data#{starting_bid := NewStartingBid}, 
-       [{reply, From, {error, invalid_item}}]};
-    % auction_ended - TODO
-    true ->
-      undefined
+    false ->
+      if 
+        AuctionId =/= BidAuctionId -> 
+          {keep_state, 
+          Data#{starting_bid := NewStartingBid}, 
+          [{reply, From, {error, invalid_auction}}]};
+        CurrentItemId =/= BidItemId ->
+          {keep_state, 
+          Data#{starting_bid := NewStartingBid}, 
+          [{reply, From, {error, invalid_item}}]};
+        true ->
+          undefined
+      end
   end.
 
-check_leading_bid(Data, Bid, Bidder, StartingBid, LeadingBid, LeadingBidder) ->
+check_leading_bid(Data, From, Bid, Bidder, StartingBid, LeadingBid) ->
   if 
     LeadingBid =:= undefined ->   % first bid
       if
         Bid < StartingBid ->  % non_leading because lower than StartingBid 
           {keep_state, 
-           Data#{starting_bid := NewStartingBid}, 
+           Data#{starting_bid := StartingBid}, 
            [{reply, From, {ok, {non_leading, StartingBid}}}]};
         true -> % leading because higher than StartingBid and no LeadingBid
-          {auction_item, 
-           Data#{starting_bid := NewStartingBid,
-                 leading_bid := Bid
+          {next_state,
+           auction_item, 
+           Data#{starting_bid := StartingBid,
+                 leading_bid := Bid,
                  leading_bidder := Bidder}, 
            [{reply, From, {ok, leading}},
             {state_timeout, 10000, next_item}]}
-      end
+      end;
     true -> % there is a LeadingBid already
       if
-        Bid <= LeadingBid -> % non_leading because lower than LeadingBid
+        Bid =< LeadingBid -> % non_leading because lower than LeadingBid
           {keep_state, 
-           Data#{starting_bid := NewStartingBid}, 
+           Data#{starting_bid := StartingBid}, 
            [{reply, From, {ok, {non_leading, LeadingBid}}}]};
         true -> % leading because higher than LeadingBid
-          {auction_item, 
-           Data#{starting_bid := NewStartingBid,
-                 leading_bid := Bid
+          {next_state,
+           auction_item, 
+           Data#{starting_bid := StartingBid,
+                 leading_bid := Bid,
                  leading_bidder := Bidder}, 
            [{reply, From, {ok, leading}},
             {state_timeout, 10000, next_item}]}
       end
+  end.
 
 %% if no winner then do not save 
 save_winning_bidder(AuctionId, CurrentItemId, LeadingBid, LeadingBidder) ->
   if 
     LeadingBid =/= undefined -> % we have a winner!
       auction_data:add_winning_bidder(
-        AuctionId, CurrentItemId, LeadingBid, LeadingBidder).
+        AuctionId, CurrentItemId, LeadingBid, LeadingBidder)
+  end.
 
 %% see if there are any more ItemIds to auction
 get_next_itemid(RemainingItemIds) ->
@@ -198,18 +216,7 @@ get_next_itemid(RemainingItemIds) ->
       {undefined, undefined};
     [NewCurrentItemId | NewRemainingItemIds] -> 
       {NewCurrentItemId, NewRemainingItemIds}
-      
-% handle_call(_Event, _From, State) ->
-%   {noreply, State}.
+  end.
 
-% handle_cast(_Event, State) ->
-%   {noreply, State}.
-
-% handle_info(_Event, State) ->
-%   {noreply, State}.
-
-% code_change(_OldVsn, State, _Extra) ->
-%   {ok, State}.  
-
-% terminate(_Reason, _State) ->
-%   ok.
+terminate(_Reason, _State, _Data) ->
+  ok.

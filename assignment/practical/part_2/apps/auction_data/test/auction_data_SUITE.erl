@@ -10,20 +10,24 @@
          end_per_testcase/2]).
 -export([test_create_auction/1,
          test_add_items/1,
+         test_add_winning_bidder/1,
          test_get_auctions/1,
          test_get_items/1,
          test_get_items_and_lock_auction/1,
          test_get_item/1,
+         test_get_winning_bidder/1,
          test_remove_auction/1,
          test_remove_item/1]).
 
 all() ->
   [test_create_auction,
    test_add_items,
+   test_add_winning_bidder,
    test_get_auctions,
    test_get_items,
    test_get_items_and_lock_auction,
    test_get_item,
+   test_get_winning_bidder,
    test_remove_auction,
    test_remove_item].
 
@@ -48,6 +52,12 @@ init_per_testcase(test_create_auction, Config) ->
   {ok, AuctionId} = auction_data:create_auction(),
   [{auction, AuctionId} |
    [{response, {ok, AuctionId}} | Config]];
+init_per_testcase(test_add_winning_bidder, Config) ->
+  {ok, AuctionId} = auction_data:create_auction(),
+  AuctionItems = [{"book", "fiction", 0}, {"hat", "blue cap", 1}],
+  {ok, [{ItemId1, "hat"}, {ItemId2, "book"}]} = 
+    auction_data:add_items(AuctionId, AuctionItems),
+  [{auction, AuctionId} | [{itemids, [ItemId1, ItemId2]} | Config]];
 init_per_testcase(test_get_auctions, Config) ->
   {ok, AuctionId1} = auction_data:create_auction(),
   {ok, AuctionId2} = auction_data:create_auction(),
@@ -84,6 +94,19 @@ init_per_testcase(test_get_item, Config) ->
   {ok, [{ItemId1, "hat"}, {ItemId2, "book"}]} = 
     auction_data:add_items(AuctionId, AuctionItems),
   [{auction, AuctionId} | [{itemids, [ItemId1, ItemId2]} | Config]];
+init_per_testcase(test_get_winning_bidder, Config) ->
+  {ok, AuctionId} = auction_data:create_auction(),
+  AuctionItems = [{"book", "fiction", 0}, {"hat", "blue cap", 1}],
+  {ok, [{ItemId1, "hat"}, {ItemId2, "book"}]} = 
+    auction_data:add_items(AuctionId, AuctionItems),
+  WinningBid = 3,
+  WinningBidder = {"elon musk", make_ref()},
+  ok = auction_data:add_winning_bidder(
+    AuctionId, ItemId1, WinningBid, WinningBidder),
+  [{winning, {WinningBidder, WinningBid}} |
+    [{auction, AuctionId} | 
+      [{itemids, [ItemId1, ItemId2]} | 
+        Config]]];
 init_per_testcase(test_remove_item, Config) ->
   {ok, AuctionId} = auction_data:create_auction(),
   AuctionItems = [{"book", "fiction", 0}, {"hat", "blue cap", 1}],
@@ -130,6 +153,25 @@ test_add_items(Config) ->
   {error, unknown_auction} = 
     auction_data:add_items(InvalidAuctionId, AuctionItems).
 
+test_add_winning_bidder(Config) ->
+  AuctionId = ?config(auction, Config),
+  [ItemId1, ItemId2] = ?config(itemids, Config),
+  WinningBid = 4,
+  WinningBidder = {"tom brady", make_ref()},
+  ok = auction_data:add_winning_bidder(
+    AuctionId, ItemId1, WinningBid, WinningBidder),
+  {ok, {WinningBid, WinningBidder}} = 
+    auction_data:get_winning_bidder(AuctionId, ItemId1),
+  {ok, {undefined, undefined}} = 
+    auction_data:get_winning_bidder(AuctionId, ItemId2),
+  InvalidAuctionId = make_ref(),
+  {error, unknown_auction} = 
+    auction_data:add_winning_bidder(
+      InvalidAuctionId, ItemId1, WinningBid, WinningBidder),
+  InvalidItemId = {erlang:monotonic_time(), make_ref()},
+    {error, unknown_item} = auction_data:add_winning_bidder(
+      AuctionId, InvalidItemId, WinningBid, WinningBidder).
+
 test_get_auctions(Config) ->
   Auctions = ?config(auction, Config),
   {ok, AuctionIdList} = auction_data:get_auctions(),
@@ -167,6 +209,21 @@ test_get_item(Config) ->
   {error, unknown_auction} = auction_data:get_item(InvalidAuctionId, ItemId1),
   InvalidItemId = {erlang:monotonic_time(), make_ref()},
   {error, unknown_item} = auction_data:get_item(AuctionId, InvalidItemId).
+
+test_get_winning_bidder(Config) ->
+  AuctionId = ?config(auction, Config),
+  [ItemId1, ItemId2] = ?config(itemids, Config),
+  {WinningBidder, WinningBid} = ?config(winning, Config),
+  {ok, {WinningBid, WinningBidder}} = 
+    auction_data:get_winning_bidder(AuctionId, ItemId1),
+  {ok, {undefined, undefined}} = 
+    auction_data:get_winning_bidder(AuctionId, ItemId2),
+  InvalidAuctionId = make_ref(),
+  {error, unknown_auction} = 
+    auction_data:get_winning_bidder(InvalidAuctionId, ItemId1),
+  InvalidItemId = {erlang:monotonic_time(), make_ref()},
+  {error, unknown_item} = 
+    auction_data:get_winning_bidder(AuctionId, InvalidItemId).
 
 test_remove_auction(Config) ->
   AuctionId = ?config(auction, Config),

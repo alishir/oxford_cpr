@@ -18,6 +18,7 @@
   get_items/1,
   get_items_and_lock_auction/1,
   get_item/2,
+  get_winning_bidder/2,
   remove_auction/1,
   remove_item/2
 ]).
@@ -25,7 +26,7 @@
 -type itemid() :: {integer(), reference()}.
 -type item_info() :: {nonempty_string(), nonempty_string(), non_neg_integer()}.
 -type itemid_info() :: {itemid(), nonempty_string(), non_neg_integer()}.
--type bidderid() :: {reference()}.
+-type bidderid() :: {nonempty_string(), reference()}.
 
 -record(auction_ids, {auction_id, 
                       locked}).
@@ -102,7 +103,8 @@ add_items(AuctionId, ItemsList) ->
 
 %% @doc 
 -spec add_winning_bidder(reference(), itemid(), non_neg_integer(), 
-  bidderid()) -> ok | {error, unknown_item | unknown_auction}.
+  bidderid()) -> 
+  ok | {error, unknown_item | unknown_auction}.
 add_winning_bidder(AuctionId, ItemId, WinningBid, WinningBidder) ->
   F = fun() ->
     case mnesia:read({auction_ids, AuctionId}) =:= [] of
@@ -187,6 +189,28 @@ get_item(AuctionId, ItemId) ->
         case mnesia:read({auction_data, ItemId}) of 
           [{auction_data, ItemId, AuctionId, Item, Desc, Bid, _, _}] ->
             {ok, {Item, Desc, Bid}};
+          _ ->
+            {error, unknown_item}
+        end
+    end
+  end,
+  mnesia:activity(transaction, F).
+
+-spec get_winning_bidder(reference(), itemid()) ->
+  {ok, {non_neg_integer(), bidderid()}} |
+  {ok, {undefined, undefined}} | 
+  {error, unknown_item | unknown_auction}.
+get_winning_bidder(AuctionId, ItemId) ->
+  F = fun() ->
+    case mnesia:read({auction_ids, AuctionId}) =:= [] of
+      true ->
+        {error, unknown_auction};
+      false ->
+        case mnesia:read({auction_data, ItemId}) of 
+          [{auction_data, ItemId, AuctionId, _, _, _, undefined, undefined}] ->
+            {ok, {undefined, undefined}};
+          [{auction_data, ItemId, AuctionId, _, _, _, WinningBid, WinningBidder}] ->
+            {ok, {WinningBid, WinningBidder}};
           _ ->
             {error, unknown_item}
         end
