@@ -13,6 +13,7 @@
 -export([
   create_auction/0, 
   add_items/2, 
+  add_winning_bidder/4,
   get_auctions/0, 
   get_items/1,
   get_items_and_lock_auction/1,
@@ -24,6 +25,7 @@
 -type itemid() :: {integer(), reference()}.
 -type item_info() :: {nonempty_string(), nonempty_string(), non_neg_integer()}.
 -type itemid_info() :: {itemid(), nonempty_string(), non_neg_integer()}.
+-type bidderid() :: {reference()}.
 
 -record(auction_ids, {auction_id, 
                       locked}).
@@ -31,13 +33,14 @@
                        auction_id,
                        item, 
                        desc,
-                       bid}).
+                       bid,
+                       winning_bid,
+                       winning_bidder}).
 
 %%% Setup ---------------------------------------------------------------------
 start(normal, []) ->
   mnesia:wait_for_tables([auction_ids, 
                           auction_data], 5000).
-  % auction_data_sup:start_link().
 
 stop(_) -> ok.  
 
@@ -85,7 +88,9 @@ add_items(AuctionId, ItemsList) ->
                                        auction_id=AuctionId,
                                        item=Item,
                                        desc=Desc,
-                                       bid=Bid}),
+                                       bid=Bid,
+                                       winning_bid=undefined,
+                                       winning_bidder=undefined}),
             [{ItemId, Item}|Output] 
           end,
           [],
@@ -96,9 +101,30 @@ add_items(AuctionId, ItemsList) ->
   mnesia:activity(transaction, F).
 
 %% @doc 
--spec 
-add_winning_bidder(AuctionId, CurrentItemId, LeadingBid, LeadingBidder) ->
-  ok.
+-spec add_winning_bidder(reference(), itemid(), non_neg_integer(), 
+  bidderid()) -> ok | {error, unknown_item | unknown_auction}.
+add_winning_bidder(AuctionId, ItemId, WinningBid, WinningBidder) ->
+  F = fun() ->
+    case mnesia:read({auction_ids, AuctionId}) =:= [] of
+      true ->
+        {error, unknown_auction};
+      false ->
+        case mnesia:read({auction_data, ItemId}) of 
+          [{auction_data, ItemId, AuctionId, Item, Desc, Bid, _, _}] ->
+            mnesia:write(#auction_data{item_id=ItemId,
+                                       auction_id=AuctionId,
+                                       item=Item,
+                                       desc=Desc,
+                                       bid=Bid,
+                                       winning_bid=WinningBid,
+                                       winning_bidder=WinningBidder}),
+            ok;
+          _ ->
+            {error, unknown_item}
+        end
+    end
+  end,
+  mnesia:activity(transaction, F).
 
 %% @doc Gets a list of auctions
 -spec get_auctions() -> {ok, [reference()]}.
@@ -116,7 +142,7 @@ get_auctions() ->
 get_items(AuctionId) ->
   F1 = fun(AuctionData, Output) ->
     case AuctionData of
-      {auction_data, ItemId, AuctionId, _, _, _} -> 
+      {auction_data, ItemId, AuctionId, _, _, _, _, _} -> 
         [ItemId | Output];
       _ ->
         Output
@@ -159,7 +185,7 @@ get_item(AuctionId, ItemId) ->
         {error, unknown_auction};
       false ->
         case mnesia:read({auction_data, ItemId}) of 
-          [{auction_data, ItemId, AuctionId, Item, Desc, Bid}] ->
+          [{auction_data, ItemId, AuctionId, Item, Desc, Bid, _, _}] ->
             {ok, {Item, Desc, Bid}};
           _ ->
             {error, unknown_item}
@@ -196,7 +222,7 @@ remove_item(AuctionId, ItemId) ->
       [_] ->
         ItemInfo = mnesia:read({auction_data, ItemId}),
         case ItemInfo of
-          [{auction_data, ItemId, AuctionId, _, _, _}] ->
+          [{auction_data, ItemId, AuctionId, _, _, _, _, _}] ->
             mnesia:delete({auction_data, ItemId}),
             ok;
           [] ->
