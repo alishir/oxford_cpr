@@ -23,8 +23,6 @@
 -type itemid() :: {integer(), reference()}.
 -type item_info() :: {nonempty_string(), nonempty_string(), non_neg_integer()}.
 -type itemid_info() :: {itemid(), nonempty_string(), non_neg_integer()}.
--type unknown_item() :: term().
--type unknown_auction() :: term().
 
 -record(auction_ids, {auction_id, 
                       locked}).
@@ -69,14 +67,14 @@ create_auction() ->
 
 %% @doc Adds items to a given auction.
 -spec add_items(reference(), [item_info()]) -> 
-  {ok, [{itemid(), nonempty_string()}]} | {error, unknown_auction()}.
+  {ok, [{itemid(), nonempty_string()}]} | {error, unknown_auction}.
 add_items(AuctionId, ItemsList) ->
   F = fun() ->
     AuctionInfo = mnesia:read({auction_ids, AuctionId}),
     case AuctionInfo of
       [] ->
         {error, unknown_auction};
-      [{_, true}] -> 
+      [{auction_ids, AuctionId, true}] -> 
         {error, unknown_auction};
       [_] ->
         ItemsIdList = lists:foldl(
@@ -108,7 +106,7 @@ get_auctions() ->
 %% @doc Gets a list of items for a specific auction. The list is in 
 %% lexicographical order
 -spec get_items(reference()) -> 
-  {ok, [itemid()]} | {error, unknown_auction()}.
+  {ok, [itemid()]} | {error, unknown_auction}.
 get_items(AuctionId) ->
   F1 = fun(AuctionData, Output) ->
     case AuctionData of
@@ -130,7 +128,7 @@ get_items(AuctionId) ->
 
 %% @doc Gets item specific information 
 -spec get_item(reference(), itemid()) -> 
-  {ok, itemid_info()} | {error, unknown_item() | unknown_auction()}.
+  {ok, itemid_info()} | {error, unknown_item | unknown_auction}.
 get_item(AuctionId, ItemId) ->
   F = fun() ->
     case mnesia:read({auction_ids, AuctionId}) =:= [] of
@@ -148,7 +146,7 @@ get_item(AuctionId, ItemId) ->
   mnesia:activity(transaction, F).
 
 %% @doc Removes an auction
--spec remove_auction(reference()) -> ok | {error, unknown_auction()}.
+-spec remove_auction(reference()) -> ok | {error, unknown_auction}.
 remove_auction(AuctionId) ->
   F = fun() ->
     case mnesia:read({auction_ids, AuctionId}) =:= [] of
@@ -163,14 +161,14 @@ remove_auction(AuctionId) ->
 
 %% @doc Removes an item from an auction
 -spec remove_item(reference(), itemid()) ->
-  ok | {error, unknown_item(), unknown_auction()}.
+  ok | {error, unknown_item, unknown_auction}.
 remove_item(AuctionId, ItemId) ->
   F = fun() ->
     AuctionInfo = mnesia:read({auction_ids, AuctionId}),
     case AuctionInfo of
       [] ->
         {error, unknown_auction};
-      [{_, true}] -> 
+      [{auction_ids, AuctionId, true}] -> 
         {error, unknown_auction};
       [_] ->
         ItemInfo = mnesia:read({auction_data, ItemId}),

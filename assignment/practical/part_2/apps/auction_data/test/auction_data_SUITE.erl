@@ -127,7 +127,8 @@ test_add_items(Config) ->
   GottenItems = lists:sort([ItemId1, ItemId2]),
   % and it returns the correct error if the AuctionId is invalid
   InvalidAuctionId = make_ref(),
-  {error, unknown_auction} = auction_data:add_items(InvalidAuctionId, AuctionItems).
+  {error, unknown_auction} = 
+    auction_data:add_items(InvalidAuctionId, AuctionItems).
 
 test_get_auctions(Config) ->
   Auctions = ?config(auction, Config),
@@ -151,7 +152,11 @@ test_get_items_and_lock_auction(Config) ->
   ItemIdsSorted = lists:sort(ItemIds),
   ItemIdsSorted = GottenItems,
   InvalidAuctionId = make_ref(),
-  {error, unknown_auction} = auction_data:get_items_and_lock_auction(InvalidAuctionId).
+  {error, unknown_auction} = 
+    auction_data:get_items_and_lock_auction(InvalidAuctionId),
+  % shouldn't be able to add any more items now AuctionId1 is locked
+  {error, unknown_auction} = 
+    auction_data:add_items(AuctionId1, [{"phone", "black", 0}]).
 
 test_get_item(Config) ->
   AuctionId = ?config(auction, Config),
@@ -178,4 +183,5 @@ test_remove_item(Config) ->
   {ok, {"book", "fiction", 0}} = auction_data:get_item(AuctionId, ItemId2),
   {error, unknown_item} = auction_data:remove_item(AuctionId, ItemId1),
   InvalidAuctionId = make_ref(),
-  {error, unknown_auction} = auction_data:remove_item(InvalidAuctionId, ItemId2).
+  {error, unknown_auction} = 
+    auction_data:remove_item(InvalidAuctionId, ItemId2).
