@@ -2,7 +2,6 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--test_warnings([start/0, start_link/1, init/0, time_to_go/1]).
 
 -export([all/0, 
          groups/0,
@@ -22,12 +21,13 @@
          test_check_for_invalid_bid/1,
          test_check_leading_bid/1,
          test_get_next_itemid/1,
-         test_bid_single_bidder/1]).
+         test_bid_single_bidder/1,
+         test_bid_multiple_bidders/1]).
 
 all() ->
   [{group, auction_data_dep_unit},
    {group, statem_dep_unit},
-   {group, single_bidder_integ}].
+   {group, bidder_unit}].
 
 groups() -> 
   [{auction_data_dep_unit, [], [test_start_link,
@@ -39,7 +39,7 @@ groups() ->
                           test_check_for_invalid_bid,
                           test_check_leading_bid,
                           test_get_next_itemid]},
-   {single_bidder_integ, [], [test_bid_single_bidder]}].
+   {bidder_unit, [], [test_bid_single_bidder, test_bid_multiple_bidders]}].
 
 %%% suite setup & tear down ---------------------------------------------------
 init_per_suite(Config) ->
@@ -58,8 +58,6 @@ end_per_suite(_Config) ->
   ok.
 
 %%% group setup & tear down ---------------------------------------------------
-init_per_group(auction_data_dep_unit, Config) ->
-  Config;
 init_per_group(statem_dep_unit, Config) ->
   AuctionId = make_ref(),
   ItemId1 = {erlang:monotonic_time(), make_ref()},
@@ -75,24 +73,9 @@ init_per_group(statem_dep_unit, Config) ->
     [{auction, AuctionId} | 
       [{itemids, [ItemId1, ItemId2]} | 
         Config]]];
-init_per_group(single_bidder_integ, Config) ->
-  {ok, AuctionId} = auction_data:create_auction(),
-  StartingBid1 = 3,
-  StartingBid2 = 3,
-  AuctionItems = 
-    [{"book", "fiction", StartingBid2}, {"hat", "blue cap", StartingBid1}],
-  {ok, [{ItemId1, "hat"}, {ItemId2, "book"}]} = 
-    auction_data:add_items(AuctionId, AuctionItems),
-  [{starting_bids, [StartingBid1, StartingBid2]} |
-    [{auction, AuctionId} | 
-      [{itemids, [ItemId1, ItemId2]} | 
-        Config]]];
 init_per_group(_, Config) ->
   Config.
 
-end_per_group(single_bidder_integ, Config) ->
-  AuctionId = ?config(auction, Config),
-  ok = auction_data:remove_auction(AuctionId);
 end_per_group(_, _Config) ->
   ok.
 
@@ -201,6 +184,30 @@ init_per_testcase(test_auction_item, Config) ->
         [{leading_bid, LeadingBid} |
           [{starting_bids , [StartingBid1, StartingBid2]} | 
             [{input_states, [M1, M2]} | Config]]]]]]; 
+init_per_testcase(test_bid_single_bidder, Config) ->
+  {ok, AuctionId} = auction_data:create_auction(),
+  StartingBid1 = 3,
+  StartingBid2 = 3,
+  AuctionItems = 
+    [{"book", "fiction", StartingBid2}, {"hat", "blue cap", StartingBid1}],
+  {ok, [{ItemId1, "hat"}, {ItemId2, "book"}]} = 
+    auction_data:add_items(AuctionId, AuctionItems),
+  [{starting_bids, [StartingBid1, StartingBid2]} |
+    [{auction, AuctionId} | 
+      [{itemids, [ItemId1, ItemId2]} | 
+        Config]]];
+init_per_testcase(test_bid_multiple_bidders, Config) ->
+  {ok, AuctionId} = auction_data:create_auction(),
+  StartingBid1 = 5,
+  StartingBid2 = 3,
+  AuctionItems = 
+    [{"book", "fiction", StartingBid2}, {"hat", "blue cap", StartingBid1}],
+  {ok, [{ItemId1, "hat"}, {ItemId2, "book"}]} = 
+    auction_data:add_items(AuctionId, AuctionItems),
+  [{auction, AuctionId} | 
+    [{itemids_and_starting_bids, [{ItemId1, StartingBid1}, 
+                                  {ItemId2, StartingBid2}]} | 
+      Config]];
 init_per_testcase(_, Config) ->
   Config.
 
@@ -216,6 +223,12 @@ end_per_testcase(test_get_starting_bid, Config) ->
   AuctionId = ?config(auction, Config),
   ok = auction_data:remove_auction(AuctionId);
 end_per_testcase(test_add_winning_bidder, Config) ->
+  AuctionId = ?config(auction, Config),
+  ok = auction_data:remove_auction(AuctionId);
+end_per_testcase(test_bid_single_bidder, Config) ->
+  AuctionId = ?config(auction, Config),
+  ok = auction_data:remove_auction(AuctionId);
+end_per_testcase(test_bid_multiple_bidders, Config) ->
   AuctionId = ?config(auction, Config),
   ok = auction_data:remove_auction(AuctionId);
 end_per_testcase(_, _Config) ->
@@ -553,11 +566,11 @@ test_get_next_itemid(Config) ->
   {ItemId2, []} = auction:get_next_itemid([ItemId2]),
   {undefined, undefined} = auction:get_next_itemid([]).
 
-%%% single_bidder_integration -------------------------------------------------
+%%% bidder unit test ----------------------------------------------------------
 test_bid_single_bidder(Config) ->
   AuctionId = ?config(auction, Config),
   [ItemId1, ItemId2] = lists:sort(?config(itemids, Config)),
-  [StartingBid1, _] = ?config(starting_bids, Config),
+  [StartingBid1, StartingBid2] = ?config(starting_bids, Config),
   Bidder = {"elon musk", make_ref()},
   {ok, _} = auction:start_link(AuctionId),  
   {ok, {not_leading, StartingBid1}} = 
@@ -565,9 +578,75 @@ test_bid_single_bidder(Config) ->
                 ItemId1, 
                 StartingBid1 -1, 
                 Bidder),
-  timer:sleep(5),
+  timer:sleep(5000),
   {ok, leading} = 
     auction:bid(AuctionId,
                 ItemId1,
                 StartingBid1,
-                Bidder).
+                Bidder),
+  % we try to bid for ItemId2 too early - ItemId1 not sold yet
+  {error, invalid_item} = 
+    auction:bid(AuctionId,
+                ItemId2,
+                StartingBid2+5,
+                Bidder),
+  % after 10s auction changes item and it is sold
+  timer:sleep(15000), 
+  {error, item_already_sold} = 
+    auction:bid(AuctionId,
+                ItemId1,
+                StartingBid1+1,
+                Bidder),
+  % now onto ItemId2 - first we check ItemId1 is sold
+  LeadingBidderItemId1 = StartingBid1,
+  {ok, {LeadingBidderItemId1, Bidder}} = 
+    auction_data:get_winning_bidder(AuctionId, ItemId1),
+  {ok, leading} = 
+    auction:bid(AuctionId,
+                ItemId2,
+                StartingBid2+5,
+                Bidder),
+  % wait for ItemId2 to be sold and auction to be over
+  timer:sleep(10000),
+  {error, auction_ended} = 
+    auction:bid(AuctionId,
+                ItemId2,
+                StartingBid2+7,
+                Bidder),
+  % we check that auction_ended bid was not accepted
+  LeadingBidderItemId2 = StartingBid2+5,
+  {ok, {LeadingBidderItemId2, Bidder}} = 
+    auction_data:get_winning_bidder(AuctionId, ItemId2).
+
+%%% multiple_bidder unit tests ------------------------------------------------
+test_bid_multiple_bidders(Config) ->
+  AuctionId = ?config(auction, Config),
+  [{ItemId1, StartingBid1}, {ItemId2, StartingBid2}]    
+    = lists:sort(?config(itemids_and_starting_bids, Config)),
+  Elon = {"elon musk", make_ref()},
+  Bezos = {"jeff bezos", make_ref()},
+  {ok, _} = auction:start_link(AuctionId),  
+  % 0s = elon bids < StartingBid
+  {ok, {not_leading, StartingBid1}} =
+    auction:bid(AuctionId, ItemId1, StartingBid1-1, Elon),
+  % 5s = jeff bids ItemId2 too early
+  timer:sleep(5000),
+  {error, invalid_item} = 
+    auction:bid(AuctionId, ItemId2, StartingBid2, Bezos),
+  % 5s = jeff bids ItemId1 
+  {ok, leading} = 
+    auction:bid(AuctionId, ItemId1, StartingBid1, Bezos),
+  % 10s = elon counter-bids ItemId1
+  timer:sleep(5000),
+  {ok, leading} = 
+    auction:bid(AuctionId, ItemId1, StartingBid1 + 1, Elon),
+  % 23s = jeff counter bids ItemId1 too late
+  timer:sleep(13000), 
+  {error, item_already_sold} = 
+    auction:bid(AuctionId, ItemId1, StartingBid1 + 2, Bezos),
+  % 31s = jeff tries to bid for ItemId2 but timer doesn't reset on failed
+  % bids so misses opportunity here as well
+  timer:sleep(8000),
+  {error, auction_ended} = 
+    auction:bid(AuctionId, ItemId2, StartingBid2, Bezos).
+  
