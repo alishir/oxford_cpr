@@ -13,7 +13,7 @@
 -export([auction_item/3, auction_ended/3]).
 -export([init/1, callback_mode/0, terminate/3]).
 -export([get_starting_bid/3, check_for_invalid_bid/8, check_leading_bid/6, 
-  save_winning_bidder/4, get_next_itemid/1]).
+  add_winning_bidder/4, get_next_itemid/1]).
 
 -type itemid() :: {integer(), reference()}.
 -type bidderid() :: {nonempty_string(), reference()}.
@@ -102,7 +102,8 @@ auction_item(state_timeout,
                starting_bid := _StartingBid,
                leading_bid := LeadingBid,
                leading_bidder := LeadingBidder} = Data) ->
-  save_winning_bidder(AuctionId, CurrentItemId, LeadingBid, LeadingBidder),
+  % if there was a winner add them
+  add_winning_bidder(AuctionId, CurrentItemId, LeadingBid, LeadingBidder),
   {NewCurrentItemId, NewRemainingItemIds} = get_next_itemid(RemainingItemIds),
   if 
     NewCurrentItemId =:= undefined ->
@@ -202,11 +203,13 @@ check_leading_bid(Data, From, Bid, Bidder, StartingBid, LeadingBid) ->
   end.
 
 %% if no winner then do not save 
-save_winning_bidder(AuctionId, CurrentItemId, LeadingBid, LeadingBidder) ->
+add_winning_bidder(AuctionId, CurrentItemId, LeadingBid, LeadingBidder) ->
   if 
     LeadingBid =/= undefined -> % we have a winner!
       auction_data:add_winning_bidder(
-        AuctionId, CurrentItemId, LeadingBid, LeadingBidder)
+        AuctionId, CurrentItemId, LeadingBid, LeadingBidder);
+    true -> 
+      ok
   end.
 
 %% see if there are any more ItemIds to auction
