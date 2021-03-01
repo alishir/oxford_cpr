@@ -21,11 +21,13 @@
          test_auction_ended/1,
          test_check_for_invalid_bid/1,
          test_check_leading_bid/1,
-         test_get_next_itemid/1]).
+         test_get_next_itemid/1,
+         test_bid_single_bidder/1]).
 
 all() ->
-  [{group, statem_dep_unit},
-   {group, auction_data_dep_unit}].
+  [{group, auction_data_dep_unit},
+   {group, statem_dep_unit},
+   {group, single_bidder_integ}].
 
 groups() -> 
   [{auction_data_dep_unit, [], [test_start_link,
@@ -37,7 +39,7 @@ groups() ->
                           test_check_for_invalid_bid,
                           test_check_leading_bid,
                           test_get_next_itemid]},
-   {single_bidder_int, [], []}].
+   {single_bidder_integ, [], [test_bid_single_bidder]}].
 
 %%% suite setup & tear down ---------------------------------------------------
 init_per_suite(Config) ->
@@ -535,3 +537,7 @@ test_get_next_itemid(Config) ->
   {ItemId1, [ItemId2]} = auction:get_next_itemid(ItemIds),
   {ItemId2, []} = auction:get_next_itemid([ItemId2]),
   {undefined, undefined} = auction:get_next_itemid([]).
+
+%%% single_bidder_integration -------------------------------------------------
+test_bid_single_bidder(Config) ->
+  ok.
