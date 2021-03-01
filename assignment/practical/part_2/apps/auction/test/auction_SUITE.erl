@@ -63,7 +63,7 @@ init_per_group(statem_dep, Config) ->
   ItemId2 = {erlang:monotonic_time(), make_ref()},
   M = #{auction_id => AuctionId, 
         current_itemid => ItemId1,
-        remaining_itemids => ItemId2, 
+        remaining_itemids => [ItemId2], 
         auctioned_itemids => [],
         starting_bid => undefined,
         leading_bid => undefined,
@@ -371,7 +371,7 @@ test_init(Config) ->
    N,
    [{state_timeout, 10000, next_item}]} = 
     auction:init([AuctionId, ItemId1, [ItemId2]]),
-  [?_assertEqual(M, N)].
+  M=N.
 
 test_auction_ended(_Config) ->
   ok.
@@ -516,5 +516,9 @@ test_check_leading_bid(Config) ->
                               LeadingBid),
   E4 = N4.
 
-test_get_next_itemid(_Config) ->
-  ok.
+test_get_next_itemid(Config) ->
+  ItemIds = ?config(itemids, Config),
+  [ItemId1, ItemId2] = ItemIds,
+  {ItemId1, [ItemId2]} = auction:get_next_itemid(ItemIds),
+  {ItemId2, []} = auction:get_next_itemid([ItemId2]),
+  {undefined, undefined} = auction:get_next_itemid([]).
