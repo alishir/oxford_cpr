@@ -373,8 +373,20 @@ test_init(Config) ->
     auction:init([AuctionId, ItemId1, [ItemId2]]),
   M=N.
 
-test_auction_ended(_Config) ->
-  ok.
+test_auction_ended(Config) ->
+  AuctionId = ?config(auction, Config),
+  [ItemId1, _] = ?config(itemids, Config),
+  Bidder = {"elon musk", make_ref()},
+  M = ?config(state_map, Config),
+  From = from,
+  Bid = 5,
+  BidMessage = {bid, AuctionId, ItemId1, Bid, Bidder},
+  {keep_state,
+   M,
+   [{reply, From, {error, auction_ended}}]} = 
+    auction:auction_ended({call, From},
+                          BidMessage,
+                          M).
 
 test_check_for_invalid_bid(Config) ->
   AuctionId = ?config(auction, Config),
