@@ -162,12 +162,12 @@ check_for_invalid_bid(Data, From, AuctionId, BidAuctionId, CurrentItemId,
       if 
         AuctionId =/= BidAuctionId -> 
           {keep_state, 
-          Data, 
-          [{reply, From, {error, invalid_auction}}]};
+           Data, 
+           [{reply, From, {error, invalid_auction}}]};
         CurrentItemId =/= BidItemId ->
           {keep_state, 
-          Data, 
-          [{reply, From, {error, invalid_item}}]};
+           Data, 
+           [{reply, From, {error, invalid_item}}]};
         true ->
           undefined
       end

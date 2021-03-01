@@ -75,9 +75,24 @@ init_per_group(statem_dep_unit, Config) ->
     [{auction, AuctionId} | 
       [{itemids, [ItemId1, ItemId2]} | 
         Config]]];
+init_per_group(single_bidder_integ, Config) ->
+  {ok, AuctionId} = auction_data:create_auction(),
+  StartingBid1 = 3,
+  StartingBid2 = 3,
+  AuctionItems = 
+    [{"book", "fiction", StartingBid2}, {"hat", "blue cap", StartingBid1}],
+  {ok, [{ItemId1, "hat"}, {ItemId2, "book"}]} = 
+    auction_data:add_items(AuctionId, AuctionItems),
+  [{starting_bids, [StartingBid1, StartingBid2]} |
+    [{auction, AuctionId} | 
+      [{itemids, [ItemId1, ItemId2]} | 
+        Config]]];
 init_per_group(_, Config) ->
   Config.
 
+end_per_group(single_bidder_integ, Config) ->
+  AuctionId = ?config(auction, Config),
+  ok = auction_data:remove_auction(AuctionId);
 end_per_group(_, _Config) ->
   ok.
 
@@ -540,4 +555,19 @@ test_get_next_itemid(Config) ->
 
 %%% single_bidder_integration -------------------------------------------------
 test_bid_single_bidder(Config) ->
-  ok.
+  AuctionId = ?config(auction, Config),
+  [ItemId1, ItemId2] = lists:sort(?config(itemids, Config)),
+  [StartingBid1, _] = ?config(starting_bids, Config),
+  Bidder = {"elon musk", make_ref()},
+  {ok, _} = auction:start_link(AuctionId),  
+  {ok, {not_leading, StartingBid1}} = 
+    auction:bid(AuctionId, 
+                ItemId1, 
+                StartingBid1 -1, 
+                Bidder),
+  timer:sleep(5),
+  {ok, leading} = 
+    auction:bid(AuctionId,
+                ItemId1,
+                StartingBid1,
+                Bidder).
