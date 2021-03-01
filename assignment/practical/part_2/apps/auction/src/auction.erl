@@ -56,7 +56,7 @@ bid(AuctionId, ItemId, Bid, Bidder) ->
 %%% Gen StateM Callbacks ------------------------------------------------------
 init([AuctionId, HeadItemId, TailItemIds]) ->
   State = auction_item,
-  Data = #{auction_id => AuctionId, 
+  Data = #{auctionid => AuctionId, 
            current_itemid => HeadItemId,
            remaining_itemids => TailItemIds, 
            auctioned_itemids => [],

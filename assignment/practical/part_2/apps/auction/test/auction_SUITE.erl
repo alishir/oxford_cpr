@@ -24,19 +24,20 @@
          test_get_next_itemid/1]).
 
 all() ->
-  [{group, auction_data_dep},
-   {group, statem_dep}].
+  [{group, statem_dep_unit},
+   {group, auction_data_dep_unit}].
 
 groups() -> 
-  [{auction_data_dep, [], [test_start_link,
-                           test_auction_item,
-                           test_get_starting_bid,
-                           test_add_winning_bidder]},
-   {statem_dep, [], [test_init,
-                     test_auction_ended,
-                     test_check_for_invalid_bid,
-                     test_check_leading_bid,
-                     test_get_next_itemid]}].
+  [{auction_data_dep_unit, [], [test_start_link,
+                                test_auction_item,
+                                test_get_starting_bid,
+                                test_add_winning_bidder]},
+   {statem_dep_unit, [], [test_init,
+                          test_auction_ended,
+                          test_check_for_invalid_bid,
+                          test_check_leading_bid,
+                          test_get_next_itemid]},
+   {single_bidder_int, [], []}].
 
 %%% suite setup & tear down ---------------------------------------------------
 init_per_suite(Config) ->
@@ -55,13 +56,13 @@ end_per_suite(_Config) ->
   ok.
 
 %%% group setup & tear down ---------------------------------------------------
-init_per_group(auction_data_dep, Config) ->
+init_per_group(auction_data_dep_unit, Config) ->
   Config;
-init_per_group(statem_dep, Config) ->
+init_per_group(statem_dep_unit, Config) ->
   AuctionId = make_ref(),
   ItemId1 = {erlang:monotonic_time(), make_ref()},
   ItemId2 = {erlang:monotonic_time(), make_ref()},
-  M = #{auction_id => AuctionId, 
+  M = #{auctionid => AuctionId, 
         current_itemid => ItemId1,
         remaining_itemids => [ItemId2], 
         auctioned_itemids => [],
@@ -71,11 +72,11 @@ init_per_group(statem_dep, Config) ->
   [{state_map, M} | 
     [{auction, AuctionId} | 
       [{itemids, [ItemId1, ItemId2]} | 
-        Config]]].
+        Config]]];
+init_per_group(_, Config) ->
+  Config.
 
-end_per_group(auction_data_dep, _Config) ->
-  ok;
-end_per_group(statem_dep, _Config) ->
+end_per_group(_, _Config) ->
   ok.
 
 %%% testcase setup ------------------------------------------------------------
@@ -115,14 +116,14 @@ init_per_testcase(test_check_for_invalid_bid, Config) ->
   AuctionId = ?config(auction, Config),
   [ItemId1, ItemId2] = ?config(itemids, Config),
   NewStartingBid = 4,
-  Input1 = #{auction_id => AuctionId, 
+  Input1 = #{auctionid => AuctionId, 
              current_itemid => ItemId2,
              remaining_itemids => [], 
              auctioned_itemids => [ItemId1],
              starting_bid => NewStartingBid,
              leading_bid => undefined,
              leading_bidder => undefined},
-  Input2 = #{auction_id => AuctionId, 
+  Input2 = #{auctionid => AuctionId, 
              current_itemid => ItemId1,
              remaining_itemids => [ItemId2], 
              auctioned_itemids => [],
@@ -136,14 +137,14 @@ init_per_testcase(test_check_leading_bid, Config) ->
   NewStartingBid = 3,
   LeadingBid = 5,
   LeadingBidder = {"jeff bezos", make_ref()},
-  M1 = #{auction_id => AuctionId, 
+  M1 = #{auctionid => AuctionId, 
          current_itemid => ItemId1,
          remaining_itemids => [ItemId2], 
          auctioned_itemids => [],
          starting_bid => NewStartingBid,
          leading_bid => undefined,
          leading_bidder => undefined},
-  M2 = #{auction_id => AuctionId, 
+  M2 = #{auctionid => AuctionId, 
          current_itemid => ItemId1,
          remaining_itemids => [ItemId2], 
          auctioned_itemids => [],
@@ -203,7 +204,7 @@ end_per_testcase(test_add_winning_bidder, Config) ->
 end_per_testcase(_, _Config) ->
   ok.
 
-%%% auction_data_dep_unit tests -----------------------------------------------
+%%% auction_data_dep_unit_unit tests -----------------------------------------------
 test_start_link(Config) ->
   [AuctionId1, AuctionId2] = ?config(auction, Config),
   {ok, _} = auction:start_link(AuctionId1),
@@ -237,7 +238,7 @@ test_add_winning_bidder(Config) ->
   {ok, {undefined, undefined}} = 
     auction_data:get_winning_bidder(AuctionId, ItemId2).
 
-% statem_dep tests
+% statem_dep_unit tests
 test_auction_item(Config) ->
   AuctionId = ?config(auction, Config),
   [ItemId1, ItemId2] = ?config(itemids, Config),
@@ -474,7 +475,7 @@ test_check_leading_bid(Config) ->
                               undefined),
   E1 = N1,
   % no leading, bid >= starting
-  E2 = #{auction_id => AuctionId, 
+  E2 = #{auctionid => AuctionId, 
          current_itemid => ItemId1,
          remaining_itemids => [ItemId2], 
          auctioned_itemids => [],
@@ -508,7 +509,7 @@ test_check_leading_bid(Config) ->
                               LeadingBid),
   E3 = N3,
   % leading, bid > leading
-  E4 = #{auction_id => AuctionId, 
+  E4 = #{auctionid => AuctionId, 
          current_itemid => ItemId1,
          remaining_itemids => [ItemId2], 
          auctioned_itemids => [],
