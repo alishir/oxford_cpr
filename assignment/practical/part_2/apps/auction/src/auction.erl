@@ -90,7 +90,12 @@ auction_item({call,From},
       ErrorState; % reply with {error, ...}
   % check if bid is leading
     true -> 
-      check_leading_bid(Data, From, Bid, Bidder, StartingBid, LeadingBid)
+      check_leading_bid(Data#{starting_bid := StartingBid}, 
+                        From, 
+                        Bid, 
+                        Bidder, 
+                        StartingBid, 
+                        LeadingBid)
   end;
 %% gen_statem calls {state_timeout, Time, EventContent}
 auction_item(state_timeout, 
@@ -174,13 +179,12 @@ check_leading_bid(Data, From, Bid, Bidder, StartingBid, LeadingBid) ->
       if
         Bid < StartingBid ->  % non_leading because lower than StartingBid 
           {keep_state, 
-           Data#{starting_bid := StartingBid}, 
+           Data, 
            [{reply, From, {ok, {non_leading, StartingBid}}}]};
         true -> % leading because higher than StartingBid and no LeadingBid
           {next_state,
            auction_item, 
-           Data#{starting_bid := StartingBid,
-                 leading_bid := Bid,
+           Data#{leading_bid := Bid,
                  leading_bidder := Bidder}, 
            [{reply, From, {ok, leading}},
             {state_timeout, 10000, next_item}]}
@@ -189,13 +193,12 @@ check_leading_bid(Data, From, Bid, Bidder, StartingBid, LeadingBid) ->
       if
         Bid =< LeadingBid -> % non_leading because lower than LeadingBid
           {keep_state, 
-           Data#{starting_bid := StartingBid}, 
+           Data, 
            [{reply, From, {ok, {non_leading, LeadingBid}}}]};
         true -> % leading because higher than LeadingBid
           {next_state,
            auction_item, 
-           Data#{starting_bid := StartingBid,
-                 leading_bid := Bid,
+           Data#{leading_bid := Bid,
                  leading_bidder := Bidder}, 
            [{reply, From, {ok, leading}},
             {state_timeout, 10000, next_item}]}
