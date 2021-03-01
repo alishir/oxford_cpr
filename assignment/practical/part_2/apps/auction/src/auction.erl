@@ -12,7 +12,7 @@
 -export([start_link/1, bid/4]).
 -export([auction_item/3, auction_ended/3]).
 -export([init/1, callback_mode/0, terminate/3]).
--export([get_starting_bid/3, check_for_invalid_bid/8, check_leading_bid/6, 
+-export([get_starting_bid/3, check_for_invalid_bid/7, check_leading_bid/6, 
   add_winning_bidder/4, get_next_itemid/1]).
 
 -type itemid() :: {integer(), reference()}.
@@ -48,7 +48,7 @@ start_link(AuctionId) ->
 %% informed they are leading the ItemId auction, or they are non-leading and
 %% what the leading bid is, or that there is some error.
 -spec bid(reference(), itemid(), non_neg_integer(), bidderid()) ->
-{ok, leading | {non_leading, non_neg_integer()}} | 
+{ok, leading | {not_leading, non_neg_integer()}} | 
 {error, invalid_auction | invalid_item | auction_ended | item_already_sold}.
 bid(AuctionId, ItemId, Bid, Bidder) ->
   gen_statem:call(?MODULE, {bid, AuctionId, ItemId, Bid, Bidder}).
@@ -80,21 +80,21 @@ auction_item({call,From},
                starting_bid := StartingBid,
                leading_bid := LeadingBid,
                leading_bidder := _LeadingBidder} = Data) ->
-  % if new item need to get starting_bid
-  NewStartingBid = get_starting_bid(AuctionId, CurrentItemId, StartingBid),
   % check that bid is valid
-  ErrorState = check_for_invalid_bid(Data, NewStartingBid, From, 
-    AuctionId, BidAuctionId, CurrentItemId, BidItemId, AuctionedItemIds),
+  ErrorState = check_for_invalid_bid(Data, From, AuctionId, BidAuctionId, 
+    CurrentItemId, BidItemId, AuctionedItemIds),
   if 
     ErrorState =/= undefined -> 
       ErrorState; % reply with {error, ...}
   % check if bid is leading
     true -> 
+      % if new item need to get starting_bid
+      NewStartingBid = get_starting_bid(AuctionId, CurrentItemId, StartingBid),
       check_leading_bid(Data#{starting_bid := StartingBid}, 
                         From, 
                         Bid, 
                         Bidder, 
-                        StartingBid, 
+                        NewStartingBid, 
                         LeadingBid)
   end;
 %% gen_statem calls {state_timeout, Time, EventContent}
@@ -150,23 +150,23 @@ get_starting_bid(AuctionId, CurrentItemId, StartingBid) ->
       StartingBid
   end.
 
-check_for_invalid_bid(Data, NewStartingBid, From, AuctionId, BidAuctionId, 
-  CurrentItemId, BidItemId, AuctionedItemIds) ->
+check_for_invalid_bid(Data, From, AuctionId, BidAuctionId, CurrentItemId, 
+  BidItemId, AuctionedItemIds) ->
   % lists:member cannot be in a guard expression
   case lists:member(BidItemId, AuctionedItemIds) of
     true ->
       {keep_state, 
-       Data#{starting_bid := NewStartingBid}, 
+       Data, 
        [{reply, From, {error, item_already_sold}}]};
     false ->
       if 
         AuctionId =/= BidAuctionId -> 
           {keep_state, 
-          Data#{starting_bid := NewStartingBid}, 
+          Data, 
           [{reply, From, {error, invalid_auction}}]};
         CurrentItemId =/= BidItemId ->
           {keep_state, 
-          Data#{starting_bid := NewStartingBid}, 
+          Data, 
           [{reply, From, {error, invalid_item}}]};
         true ->
           undefined
@@ -177,10 +177,10 @@ check_leading_bid(Data, From, Bid, Bidder, StartingBid, LeadingBid) ->
   if 
     LeadingBid =:= undefined ->   % first bid
       if
-        Bid < StartingBid ->  % non_leading because lower than StartingBid 
+        Bid < StartingBid ->  % not_leading because lower than StartingBid 
           {keep_state, 
            Data, 
-           [{reply, From, {ok, {non_leading, StartingBid}}}]};
+           [{reply, From, {ok, {not_leading, StartingBid}}}]};
         true -> % leading because higher than StartingBid and no LeadingBid
           {next_state,
            auction_item, 
@@ -191,10 +191,10 @@ check_leading_bid(Data, From, Bid, Bidder, StartingBid, LeadingBid) ->
       end;
     true -> % there is a LeadingBid already
       if
-        Bid =< LeadingBid -> % non_leading because lower than LeadingBid
+        Bid =< LeadingBid -> % not_leading because lower than LeadingBid
           {keep_state, 
            Data, 
-           [{reply, From, {ok, {non_leading, LeadingBid}}}]};
+           [{reply, From, {ok, {not_leading, LeadingBid}}}]};
         true -> % leading because higher than LeadingBid
           {next_state,
            auction_item, 
