@@ -12,7 +12,7 @@
 -export([start_link/1, bid/4]).
 -export([auction_item/3, auction_ended/3]).
 -export([init/1, callback_mode/0, terminate/3]).
--export([get_starting_bid/3, check_for_invalid_bid/8, check_leading_bid/6, 
+-export([get_starting_bid/3, check_for_invalid_bid/7, check_leading_bid/6, 
   add_winning_bidder/4, get_next_itemid/1]).
 
 -type itemid() :: {integer(), reference()}.
@@ -80,21 +80,21 @@ auction_item({call,From},
                starting_bid := StartingBid,
                leading_bid := LeadingBid,
                leading_bidder := _LeadingBidder} = Data) ->
-  % if new item need to get starting_bid
-  NewStartingBid = get_starting_bid(AuctionId, CurrentItemId, StartingBid),
   % check that bid is valid
-  ErrorState = check_for_invalid_bid(Data, NewStartingBid, From, 
-    AuctionId, BidAuctionId, CurrentItemId, BidItemId, AuctionedItemIds),
+  ErrorState = check_for_invalid_bid(Data, From, AuctionId, BidAuctionId, 
+    CurrentItemId, BidItemId, AuctionedItemIds),
   if 
     ErrorState =/= undefined -> 
       ErrorState; % reply with {error, ...}
   % check if bid is leading
     true -> 
-      check_leading_bid(Data#{starting_bid := StartingBid}, 
+      % if new item need to get starting_bid
+      NewStartingBid = get_starting_bid(AuctionId, CurrentItemId, StartingBid),
+      check_leading_bid(Data#{starting_bid := NewStartingBid}, 
                         From, 
                         Bid, 
                         Bidder, 
-                        StartingBid, 
+                        NewStartingBid, 
                         LeadingBid)
   end;
 %% gen_statem calls {state_timeout, Time, EventContent}
@@ -150,23 +150,23 @@ get_starting_bid(AuctionId, CurrentItemId, StartingBid) ->
       StartingBid
   end.
 
-check_for_invalid_bid(Data, NewStartingBid, From, AuctionId, BidAuctionId, 
+check_for_invalid_bid(Data, From, AuctionId, BidAuctionId, 
   CurrentItemId, BidItemId, AuctionedItemIds) ->
   % lists:member cannot be in a guard expression
   case lists:member(BidItemId, AuctionedItemIds) of
     true ->
       {keep_state, 
-       Data#{starting_bid := NewStartingBid}, 
+       Data, 
        [{reply, From, {error, item_already_sold}}]};
     false ->
       if 
         AuctionId =/= BidAuctionId -> 
           {keep_state, 
-          Data#{starting_bid := NewStartingBid}, 
+          Data, 
           [{reply, From, {error, invalid_auction}}]};
         CurrentItemId =/= BidItemId ->
           {keep_state, 
-          Data#{starting_bid := NewStartingBid}, 
+          Data, 
           [{reply, From, {error, invalid_item}}]};
         true ->
           undefined
