@@ -2,6 +2,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-test_warnings([start/0, start_link/1, init/0, time_to_go/1]).
 
 -export([all/0, 
          groups/0,
@@ -113,7 +114,7 @@ init_per_testcase(test_add_winning_bidder, Config) ->
 init_per_testcase(test_check_for_invalid_bid, Config) ->
   AuctionId = ?config(auction, Config),
   [ItemId1, ItemId2] = ?config(itemids, Config),
-  NewStartingBid = 7,
+  NewStartingBid = 4,
   Input1 = #{auction_id => AuctionId, 
              current_itemid => ItemId2,
              remaining_itemids => [], 
@@ -128,7 +129,9 @@ init_per_testcase(test_check_for_invalid_bid, Config) ->
              starting_bid => NewStartingBid,
              leading_bid => undefined,
              leading_bidder => undefined},
-  [{response_states, [Input1, Input2]} | Config];
+  [{starting_bid, NewStartingBid} |
+    [{response_states, [Input1, Input2]} | 
+      Config]];
 init_per_testcase(test_check_leading_bid, Config) ->
   AuctionId = ?config(auction, Config),
   [ItemId1, ItemId2] = ?config(itemids, Config),
@@ -166,7 +169,7 @@ end_per_testcase(test_get_starting_bid, Config) ->
 end_per_testcase(test_add_winning_bidder, Config) ->
   AuctionId = ?config(auction, Config),
   ok = auction_data:remove_auction(AuctionId);
-end_per_testcase(_, Config) ->
+end_per_testcase(_, _Config) ->
   ok.
 
 % auction_data_dep tests
@@ -204,7 +207,7 @@ test_add_winning_bidder(Config) ->
     auction_data:get_winning_bidder(AuctionId, ItemId2).
 
 % statem_dep tests
-test_auction_item(Config) ->
+test_auction_item(_Config) ->
   ok.
 
 test_init(Config) ->
@@ -216,61 +219,64 @@ test_init(Config) ->
    N,
    [{state_timeout, 10000, next_item}]} = 
     auction:init([AuctionId, ItemId1, [ItemId2]]),
-  ?_assertEqual(M, N).
+  [?_assertEqual(M, N)].
 
-test_auction_ended(Config) ->
+test_auction_ended(_Config) ->
   ok.
 
 test_check_for_invalid_bid(Config) ->
   AuctionId = ?config(auction, Config),
   [ItemId1, ItemId2] = ?config(itemids, Config),
-  M = ?config(state_map, Config),
   From = from,
   [M1, M2] = ?config(response_states, Config),
+  StartingBid = ?config(starting_bid, Config),
   % check if item_already_sold
+  E1 = M1,
   {keep_state,
    N1,
    [{reply, From, {error, item_already_sold}}]} = 
-    auction:check_for_invalid_bid(M, 
-                                  5, 
+    auction:check_for_invalid_bid(M1, 
+                                  StartingBid, 
                                   From, 
                                   AuctionId, 
                                   AuctionId, 
                                   ItemId2, 
                                   ItemId1, 
                                   [ItemId1]),
-  ?_assertEqual(M1, N1),
+  E1 = N1,
   % check if invalid_auction
   InvalidAuctionId = make_ref(),
+  E2 = M2,
   {keep_state,
    N2,
    [{reply, From, {error, invalid_auction}}]} = 
-    auction:check_for_invalid_bid(M, 
-                                  5, 
+    auction:check_for_invalid_bid(M2, 
+                                  StartingBid, 
                                   From, 
                                   AuctionId, 
                                   InvalidAuctionId, 
                                   ItemId1, 
                                   ItemId1, 
                                   []),
-  ?_assertEqual(M2, N2),
+  E2 = N2,
   % check if invalid_item
+  E3 = M2,
   {keep_state,
    N3,
    [{reply, From, {error, invalid_item}}]} = 
-    auction:check_for_invalid_bid(M, 
-                                  5, 
+    auction:check_for_invalid_bid(M2, 
+                                  StartingBid, 
                                   From, 
                                   AuctionId, 
                                   AuctionId, 
                                   ItemId1, 
                                   ItemId2, 
                                   []),
-  ?_assertEqual(M2, N3),
+  E3 = N3,
   % if all valid then should be undefined
   undefined = 
-    auction:check_for_invalid_bid(M, 
-                                  5, 
+    auction:check_for_invalid_bid(M2, 
+                                  StartingBid, 
                                   From, 
                                   AuctionId, 
                                   AuctionId, 
@@ -278,8 +284,8 @@ test_check_for_invalid_bid(Config) ->
                                   ItemId1, 
                                   []),
   undefined = 
-    auction:check_for_invalid_bid(M, 
-                                  5, 
+    auction:check_for_invalid_bid(M2, 
+                                  StartingBid, 
                                   From, 
                                   AuctionId, 
                                   AuctionId, 
@@ -308,7 +314,7 @@ test_check_leading_bid(Config) ->
                               Bidder,
                               StartingBid, 
                               undefined),
-  ?_assertEqual(E1, N1),
+  E1 = N1,
   % no leading, bid >= starting
   E2 = #{auction_id => AuctionId, 
          current_itemid => ItemId1,
@@ -328,7 +334,41 @@ test_check_leading_bid(Config) ->
                               Bidder,
                               StartingBid, 
                               undefined),
-  ?_assertEqual(E2, N2).
+  E2 = N2,
+  % leading, bid > starting & <= leading
+  E3 = M_leading,
+  {keep_state,
+   N3,
+   [{reply, 
+     From, 
+     {ok, {non_leading, LeadingBid}}}]} = 
+    auction:check_leading_bid(M_leading,
+                              From,
+                              StartingBid + 1,
+                              Bidder,
+                              StartingBid, 
+                              LeadingBid),
+  E3 = N3,
+  % leading, bid > leading
+  E4 = #{auction_id => AuctionId, 
+         current_itemid => ItemId1,
+         remaining_itemids => [ItemId2], 
+         auctioned_itemids => [],
+         starting_bid => StartingBid,
+         leading_bid => LeadingBid + 1,
+         leading_bidder => Bidder},
+  {next_state,
+   auction_item,
+   N4,
+   [{reply, From, {ok, leading}},
+    {state_timeout, 10000, next_item}]} = 
+    auction:check_leading_bid(M_leading,
+                              From,
+                              LeadingBid + 1,
+                              Bidder,
+                              StartingBid, 
+                              LeadingBid),
+  E4 = N4.
 
-test_get_next_itemid(Config) ->
+test_get_next_itemid(_Config) ->
   ok.
