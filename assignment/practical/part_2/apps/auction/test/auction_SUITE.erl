@@ -1,3 +1,9 @@
+%%%----------------------------------------------------------------------------
+%% File: auction_SUITE.erl
+%% @author Nicholas Drake
+%% @doc Auction test suite
+%% @end
+%%%----------------------------------------------------------------------------
 -module(auction_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
