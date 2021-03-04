@@ -10,7 +10,7 @@
 
 -export([start_link/0, create_channel/1, delete_channel/1, subscribe/1, 
          unsubscribe/1, publish/2]).
--export([stop/0]).
+-export([stop/0, monitor/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
@@ -117,7 +117,7 @@ handle_call({monitor_channel, Channel}, _From, Channels) ->
   case maps:is_key(Channel, Channels) of
     true ->
       ChannelPid = maps:get(Channel, Channels),
-      {reply, ChannelPid, Channels};
+      {reply, {ok, ChannelPid}, Channels};
     false ->
       {reply, {error, unknown_channel}, Channels}
   end;

@@ -18,7 +18,8 @@
          test_delete_channel/1,
          test_subscribe/1,
          test_unsubscribe/1,
-         test_publish/1]).
+         test_publish/1,
+         test_monitor/1]).
 
 all() ->
   [test_start_link,
@@ -26,7 +27,8 @@ all() ->
    test_delete_channel,
    test_subscribe,
    test_unsubscribe,
-   test_publish].
+   test_publish, 
+   test_monitor].
 
 %%% testcase setup & tear down ------------------------------------------------
 init_per_testcase(test_start_link, Config) ->
@@ -73,3 +75,9 @@ test_publish(Config) ->
   ok = pubsub:create_channel(Channel),
   ok = pubsub:publish(Channel, Event).  
 
+test_monitor(Config) ->
+  Channel = ?config(channel, Config),
+  {error, unknown_channel} = pubsub:monitor(Channel),
+  ok = pubsub:create_channel(Channel),
+  {ok, _} = pubsub:monitor(Channel).
+  
