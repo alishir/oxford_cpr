@@ -136,8 +136,8 @@ get_item(AuctionId, ItemId) ->
         {error, unknown_auction};
       false ->
         case mnesia:read({auction_data, ItemId}) of 
-          [{auction_data, ItemId, AuctionId, Item, Desc, Bid}] ->
-            {ok, {Item, Desc, Bid}};
+          [{auction_data, ItemId, AuctionId, _, Desc, Bid}] ->
+            {ok, {ItemId, Desc, Bid}};
           _ ->
             {error, unknown_item}
         end

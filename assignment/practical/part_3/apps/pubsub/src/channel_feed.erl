@@ -1,10 +1,10 @@
 %%%----------------------------------------------------------------------------
-%% File: pubsub feed.erl
+%% File: channel_feed.erl
 %% @author Nicholas Drake
-%% @doc Pubsub feed
+%% @doc Pubsub channel feed
 %% @end
 %%%----------------------------------------------------------------------------
--module(pubsub_feed).
+-module(channel_feed).
 
 -behaviour(gen_event).
 
@@ -15,7 +15,7 @@ init([Pid]) ->
     {ok, Pid}.
 
 handle_event(Event, Pid) ->
-    Pid ! {pubsub_feed, Event},
+    Pid ! {channel_feed, Event},
     {ok, Pid}.
 
 handle_call(_, State) ->

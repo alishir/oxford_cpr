@@ -135,8 +135,8 @@ test_get_items(Config) ->
 test_get_item(Config) ->
   AuctionId = ?config(auction, Config),
   [ItemId1, ItemId2] = ?config(itemids, Config),
-  {ok, {"hat", "blue cap", 1}} = auction_data:get_item(AuctionId, ItemId1),
-  {ok, {"book", "fiction", 0}} = auction_data:get_item(AuctionId, ItemId2),
+  {ok, {ItemId1, "blue cap", 1}} = auction_data:get_item(AuctionId, ItemId1),
+  {ok, {ItemId2, "fiction", 0}} = auction_data:get_item(AuctionId, ItemId2),
   InvalidAuctionId = make_ref(),
   {error, unknown_auction} = auction_data:get_item(InvalidAuctionId, ItemId1),
   InvalidItemId = {erlang:monotonic_time(), make_ref()},
@@ -150,11 +150,11 @@ test_remove_auction(Config) ->
 test_remove_item(Config) ->
   AuctionId = ?config(auction, Config),
   [ItemId1, ItemId2] = ?config(itemids, Config),
-  {ok, {"hat", "blue cap", 1}} = auction_data:get_item(AuctionId, ItemId1),
-  {ok, {"book", "fiction", 0}} = auction_data:get_item(AuctionId, ItemId2),
+  {ok, {ItemId1, "blue cap", 1}} = auction_data:get_item(AuctionId, ItemId1),
+  {ok, {ItemId2, "fiction", 0}} = auction_data:get_item(AuctionId, ItemId2),
   ok = auction_data:remove_item(AuctionId, ItemId1),
   {error, unknown_item} = auction_data:get_item(AuctionId, ItemId1),
-  {ok, {"book", "fiction", 0}} = auction_data:get_item(AuctionId, ItemId2),
+  {ok, {ItemId2, "fiction", 0}} = auction_data:get_item(AuctionId, ItemId2),
   {error, unknown_item} = auction_data:remove_item(AuctionId, ItemId1),
   InvalidAuctionId = make_ref(),
   {error, unknown_auction} = auction_data:remove_item(InvalidAuctionId, ItemId2).

@@ -24,29 +24,35 @@ start_link() ->
 %% @doc
 -spec create_channel(reference()) -> ok | {error, duplicate_channel}.
 create_channel(Channel) ->
-  gen_server:call(?MODULE, {create_channel, Channel}).  
+  gen_server:call({global, ?MODULE}, {create_channel, Channel}).  
 
 %% @doc
 -spec delete_channel(reference()) -> ok | {error, unknown_channel}.
 delete_channel(Channel) ->
-  gen_server:call(?MODULE, {delete_channel, Channel}).
+  gen_server:call({global, ?MODULE}, {delete_channel, Channel}).
 
 %% @doc
 -spec subscribe(reference()) -> ok | {error, unknown_channel}.
 subscribe(Channel) ->
-  gen_server:call(?MODULE, {subscribe_channel, Channel}).
+  gen_server:call({global, ?MODULE}, {subscribe_channel, Channel}).
 
 %% @doc
 -spec unsubscribe(reference()) -> ok | {error, unknown_channel}.
 unsubscribe(Channel) ->
-  gen_server:call(?MODULE, {unsubscribe_channel, Channel}).
+  gen_server:call({global, ?MODULE}, {unsubscribe_channel, Channel}).
 
 %% @doc
 -spec publish(reference(), term()) -> ok | {error, unknown_channel}.
 publish(Channel, Event) ->
-  gen_server:call(?MODULE, {publish_channel, Channel, Event}).
+  gen_server:call({global, ?MODULE}, {publish_channel, Channel, Event}).
 
 %%% Additional methods --------------------------------------------------------
+
+%% @doc
+-spec monitor(reference()) -> 
+  {ok, reference()} | {error, unknown_channel}.
+monitor(Channel) ->
+  gen_server:call({global, ?MODULE}, {monitor_channel, Channel}).
 
 %% @doc
 -spec stop() -> ok.
@@ -83,7 +89,7 @@ handle_call({subscribe_channel, Channel}, From, Channels) ->
       {ClientPid, ClientTag} = From, 
       HandlerId = {channel_feed, ClientTag},
       gen_event:add_sup_handler(ChannelPid, HandlerId, [ClientPid]),
-      {reply, ok, Channel};
+      {reply, ok, Channels};
     false ->
       {reply, {error, unknown_channel}, Channels}
   end;
@@ -94,7 +100,7 @@ handle_call({unsubscribe_channel, Channel}, From, Channels) ->
       {_, ClientTag} = From, 
       HandlerId = {channel_feed, ClientTag},
       gen_event:delete_handler(ChannelPid, HandlerId, [leave_feed]),
-      {reply, ok, Channel};
+      {reply, ok, Channels};
     false ->
       {reply, {error, unknown_channel}, Channels}
   end;
@@ -102,7 +108,16 @@ handle_call({publish_channel, Channel, Event}, _From, Channels) ->
   case maps:is_key(Channel, Channels) of
     true ->
       ChannelPid = maps:get(Channel, Channels),
-      gen_event:notify(ChannelPid, Event);
+      Response = gen_event:notify(ChannelPid, Event),
+      {reply, Response, Channels};
+    false ->
+      {reply, {error, unknown_channel}, Channels}
+  end;
+handle_call({monitor_channel, Channel}, _From, Channels) ->
+  case maps:is_key(Channel, Channels) of
+    true ->
+      ChannelPid = maps:get(Channel, Channels),
+      {reply, ChannelPid, Channels};
     false ->
       {reply, {error, unknown_channel}, Channels}
   end;
