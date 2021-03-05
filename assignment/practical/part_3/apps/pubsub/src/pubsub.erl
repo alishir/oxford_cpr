@@ -86,8 +86,8 @@ handle_call({subscribe_channel, Channel}, From, Channels) ->
   case maps:is_key(Channel, Channels) of
     true ->
       ChannelPid = maps:get(Channel, Channels),
-      {ClientPid, ClientTag} = From, 
-      HandlerId = {channel_feed, ClientTag},
+      {ClientPid, _} = From, 
+      HandlerId = {channel_feed, ClientPid},
       gen_event:add_sup_handler(ChannelPid, HandlerId, [ClientPid]),
       {reply, ok, Channels};
     false ->
@@ -97,8 +97,8 @@ handle_call({unsubscribe_channel, Channel}, From, Channels) ->
   case maps:is_key(Channel, Channels) of
     true ->
       ChannelPid = maps:get(Channel, Channels),
-      {_, ClientTag} = From, 
-      HandlerId = {channel_feed, ClientTag},
+      {ClientPid, _} = From, 
+      HandlerId = {channel_feed, ClientPid},
       gen_event:delete_handler(ChannelPid, HandlerId, [leave_feed]),
       {reply, ok, Channels};
     false ->
