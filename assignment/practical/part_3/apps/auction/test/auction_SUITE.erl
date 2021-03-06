@@ -94,16 +94,18 @@ init_per_group(bidder_integ, Config) ->
   unlink(Pid),
   {ok, AuctionId} = auction_data:create_auction(),
   ok = pubsub:create_channel(AuctionId),
-  StartingBid1 = 0,
-  StartingBid2 = 1,
+  StartingBid1 = 1,
+  StartingBid2 = 2,
+  Description1 = "blue cap",
+  Description2 = "fiction",
   AuctionItems = 
-    [{"book", "fiction", StartingBid2}, {"hat", "blue cap", StartingBid1}],
+    [{"book", Description2, StartingBid2}, {"hat", Description1, StartingBid1}],
   {ok, [{ItemId1, "hat"}, {ItemId2, "book"}]} = 
     auction_data:add_items(AuctionId, AuctionItems),
-  [{starting_bids, [StartingBid1, StartingBid2]} |
-    [{auction, AuctionId} | 
-      [{itemids, [ItemId1, ItemId2]} | 
-        Config]]];
+  [{auction, AuctionId} | 
+    [{itemids_info, lists:sort([{ItemId1, StartingBid1, Description1}, 
+                                {ItemId2, StartingBid2, Description2}])} | 
+      Config]];  
 init_per_group(bidder_integ_components, Config) ->
   Config;
 init_per_group(_, Config) ->
@@ -729,29 +731,49 @@ test_bid_multiple_bidders(Config) ->
 %%% multiple_bidder integration tests with pubsub -----------------------------
 pub1(Config) ->
   AuctionId = ?config(auction, Config),
-  [ItemId1, ItemId2] = ?config(itemids, Config),
+  [{ItemId1, StartingBid1, Description1}, 
+   {ItemId2, StartingBid2, Description2}] = 
+    ?config(itemids_info, Config),  
   timer:sleep(1000),
   % 1 s
   {ok, _} = auction:start_link(AuctionId).
 
 sub1(Config) ->
   AuctionId = ?config(auction, Config),
-  [ItemId1, ItemId2] = ?config(itemids, Config),
+  [{ItemId1, StartingBid1, Description1}, 
+   {ItemId2, StartingBid2, Description2}] = 
+    ?config(itemids_info, Config),
   % 0 s
-  {ok, MonitorRef} = auction:subscribe(AuctionId),
+  {ok, _} = auction:subscribe(AuctionId),
   % 1 s
   receive
     Msg1 ->
       ct:print("sub1 ~p", [Msg1]),
-      {channel_feed, {channel_event, {new_event, 5}}} = Msg1
+      {auction_event, auction_started} = Msg1
   end,
+  receive
+    Msg2 ->
+      ct:print("sub1 ~p", [Msg2]),
+      {auction_event, {new_item, ItemId1, Description1, StartingBid1}} = Msg2
+  end,  
   ok.
 
 sub2(Config) ->
   AuctionId = ?config(auction, Config),
-  [ItemId1, ItemId2] = ?config(itemids, Config),
+  [{ItemId1, StartingBid1, Description1}, 
+   {ItemId2, StartingBid2, Description2}] = 
+    ?config(itemids_info, Config),
   % 0 s
-  {ok, MonitorRef} = auction:subscribe(AuctionId),
+  {ok, _} = auction:subscribe(AuctionId),
   % 1 s 
-
+  receive
+    Msg1 ->
+      ct:print("sub2 ~p", [Msg1]),
+      {auction_event, auction_started} = Msg1
+  end,
+  receive
+    Msg2 ->
+      ct:print("sub2 ~p", [Msg2]),
+      {auction_event, {new_item, ItemId1, Description1, StartingBid1}} = Msg2
+  end,  
   ok.

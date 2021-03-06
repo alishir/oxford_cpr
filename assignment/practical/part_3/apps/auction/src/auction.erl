@@ -58,8 +58,9 @@ bid(AuctionId, ItemId, Bid, Bidder) ->
 subscribe(AuctionId) ->
   case pubsub:subscribe(AuctionId) of
     ok -> 
-      ChannelPid = pubsub:monitor(AuctionId),
-      {ok, erlang:monitor(process, ChannelPid)};
+      {ok, ChannelPid} = pubsub:monitor(AuctionId),
+      Reference = erlang:monitor(process, ChannelPid),
+      {ok, Reference};
     {error, unknown_channel} -> 
       {error, unknown_auction}
   end.
