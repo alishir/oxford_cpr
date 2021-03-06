@@ -34,9 +34,9 @@ start_link(AuctionId) ->
       {error, unknown_auction};
     % at least one item
     {ok, [HeadItemId | TailItemIds]} ->
+      ok = pubsub:create_channel(AuctionId),
+      pubsub:publish(AuctionId, {auction_event, auction_started}),
       % returns {ok, Pid} if successful
-      % ok = pubsub:create_channel(AuctionId),
-      % pubsub:publish(AuctionId, {auction_event, auction_started}),
       gen_statem:start_link({local, ?MODULE}, 
                             ?MODULE, 
                             [AuctionId, HeadItemId, TailItemIds], 
@@ -71,7 +71,7 @@ init([AuctionId, HeadItemId, TailItemIds]) ->
   %   auction_data:get_item(AuctionId, HeadItemId),
   % pubsub:publish(
   %   AuctionId, 
-  %   {auction_event, {new_item, CurrentItemId, Description, Bid}}),
+  %   {auction_event, {new_item, HeadItemId, Description, StartingBid}}),
   State = auction_item,
   Data = #{auctionid => AuctionId, 
            current_itemid => HeadItemId,
@@ -106,7 +106,7 @@ auction_item({call,From},
   % check if bid is leading
     true -> 
       % if new item need to get starting_bid
-      % pubsub:publish(AuctionId, {auction_event, {new_bid, CurrentItemId, Bid}}),
+      pubsub:publish(AuctionId, {auction_event, {new_bid, CurrentItemId, Bid}}),
       NewStartingBid = get_starting_bid(AuctionId, CurrentItemId, StartingBid),
       check_leading_bid(Data#{starting_bid := StartingBid}, 
                         From, 
@@ -130,7 +130,7 @@ auction_item(state_timeout,
   {NewCurrentItemId, NewRemainingItemIds} = get_next_itemid(RemainingItemIds),
   if 
     NewCurrentItemId =:= undefined ->
-      % pubsub:publish(AuctionId, {auction_event, auction_closed}),
+      pubsub:publish(AuctionId, {auction_event, auction_closed}),
       {next_state,
        auction_ended,
        Data};
