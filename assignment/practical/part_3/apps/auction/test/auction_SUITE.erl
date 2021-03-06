@@ -752,7 +752,7 @@ sub1(Config) ->
   [{ItemId1, StartingBid1, Description1}, 
    {ItemId2, StartingBid2, Description2}] = 
     ?config(itemids_info, Config),
-  [Sub1, Sub2] = ?config(subscribers, Config),
+  [Sub1, _] = ?config(subscribers, Config),
   % 0 s
   {ok, _} = auction:subscribe(AuctionId),
   % 1 s
@@ -824,7 +824,7 @@ sub2(Config) ->
   [{ItemId1, StartingBid1, Description1}, 
    {ItemId2, StartingBid2, Description2}] = 
     ?config(itemids_info, Config),
-  [Sub1, Sub2] = ?config(subscribers, Config),
+  [_, Sub2] = ?config(subscribers, Config),
   % 0 s
   {ok, _} = auction:subscribe(AuctionId),
   % 1 s 
