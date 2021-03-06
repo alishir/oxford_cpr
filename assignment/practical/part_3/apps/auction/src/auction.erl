@@ -106,7 +106,6 @@ auction_item({call,From},
   % check if bid is leading
     true -> 
       % if new item need to get starting_bid
-      pubsub:publish(AuctionId, {auction_event, {new_bid, CurrentItemId, Bid}}),
       NewStartingBid = get_starting_bid(AuctionId, CurrentItemId, StartingBid),
       check_leading_bid(Data#{starting_bid := StartingBid}, 
                         From, 

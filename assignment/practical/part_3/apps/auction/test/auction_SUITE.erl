@@ -94,18 +94,22 @@ init_per_group(bidder_integ, Config) ->
   unlink(Pid),
   {ok, AuctionId} = auction_data:create_auction(),
   ok = pubsub:create_channel(AuctionId),
-  StartingBid1 = 1,
+  StartingBid1 = 3,
   StartingBid2 = 2,
   Description1 = "blue cap",
   Description2 = "fiction",
   AuctionItems = 
-    [{"book", Description2, StartingBid2}, {"hat", Description1, StartingBid1}],
+    [{"book", Description2, StartingBid2}, 
+     {"hat", Description1, StartingBid1}],
   {ok, [{ItemId1, "hat"}, {ItemId2, "book"}]} = 
     auction_data:add_items(AuctionId, AuctionItems),
-  [{auction, AuctionId} | 
-    [{itemids_info, lists:sort([{ItemId1, StartingBid1, Description1}, 
-                                {ItemId2, StartingBid2, Description2}])} | 
-      Config]];  
+  Sub1 = {"elon musk", make_ref()},
+  Sub2 = {"jeff bezos", make_ref()},
+  [{subscribers, [Sub1, Sub2]} | 
+    [{auction, AuctionId} | 
+      [{itemids_info, lists:sort([{ItemId1, StartingBid1, Description1}, 
+                                  {ItemId2, StartingBid2, Description2}])} | 
+        Config]]];  
 init_per_group(bidder_integ_components, Config) ->
   Config;
 init_per_group(_, Config) ->
@@ -337,7 +341,8 @@ test_add_winning_bidder(Config) ->
   [ItemId1, ItemId2] = ?config(itemids, Config),
   LeadingBid = 3,
   LeadingBidder = {"elon musk", make_ref()},
-  ok = auction:add_winning_bidder(AuctionId, ItemId1, LeadingBid, LeadingBidder),
+  ok = 
+    auction:add_winning_bidder(AuctionId, ItemId1, LeadingBid, LeadingBidder),
   {ok, {LeadingBid, LeadingBidder}} = 
     auction_data:get_winning_bidder(AuctionId, ItemId1),
   ok = auction:add_winning_bidder(AuctionId, ItemId2, undefined, undefined),
@@ -380,7 +385,8 @@ test_auction_item(Config) ->
   % test for bid < starting bid and no leading bid
   E3 = M_no_leading,
   LessThanStartingBid = 2,
-  LessThanStartingBidMessage = {bid, AuctionId, ItemId1, LessThanStartingBid, Bidder},
+  LessThanStartingBidMessage = 
+    {bid, AuctionId, ItemId1, LessThanStartingBid, Bidder},
   {keep_state,
    N3,
    [{reply, From, {ok, {not_leading, StartingBid1}}}]} = 
@@ -390,7 +396,8 @@ test_auction_item(Config) ->
   E3 = N3,
   % test for bid >= starting bid and no leading bid
   MoreThanStartingBid = 4,
-  MoreThanStartingBidMessage = {bid, AuctionId, ItemId1, MoreThanStartingBid, Bidder},
+  MoreThanStartingBidMessage = 
+    {bid, AuctionId, ItemId1, MoreThanStartingBid, Bidder},
   E4 = #{auctionid => AuctionId, 
          current_itemid => ItemId1,
          remaining_itemids => [ItemId2], 
@@ -743,6 +750,7 @@ sub1(Config) ->
   [{ItemId1, StartingBid1, Description1}, 
    {ItemId2, StartingBid2, Description2}] = 
     ?config(itemids_info, Config),
+  [Sub1, Sub2] = ?config(subscribers, Config),
   % 0 s
   {ok, _} = auction:subscribe(AuctionId),
   % 1 s
@@ -756,6 +764,19 @@ sub1(Config) ->
       ct:print("sub1 ~p", [Msg2]),
       {auction_event, {new_item, ItemId1, Description1, StartingBid1}} = Msg2
   end,  
+  % bid < starting bid
+  Sub1ItemId1Bid1 = StartingBid1 - 1,
+  {ok, {not_leading, StartingBid1}} = 
+    auction:bid(AuctionId, ItemId1, Sub1ItemId1Bid1, Sub1),
+  Sub1ItemId1Bid2 = StartingBid1,
+  {ok, leading} = 
+    auction:bid(AuctionId, ItemId1, Sub1ItemId1Bid2, Sub1),
+  % do not receive any message re: sub1 failed initial bid
+  receive
+    Msg3 ->
+      ct:print("sub1 ~p", [Msg3]),
+      {auction_event, {new_bid, ItemId1, Sub1ItemId1Bid2}} = Msg3
+  end,    
   ok.
 
 sub2(Config) ->
@@ -763,6 +784,7 @@ sub2(Config) ->
   [{ItemId1, StartingBid1, Description1}, 
    {ItemId2, StartingBid2, Description2}] = 
     ?config(itemids_info, Config),
+  [Sub1, Sub2] = ?config(subscribers, Config),
   % 0 s
   {ok, _} = auction:subscribe(AuctionId),
   % 1 s 
@@ -775,5 +797,12 @@ sub2(Config) ->
     Msg2 ->
       ct:print("sub2 ~p", [Msg2]),
       {auction_event, {new_item, ItemId1, Description1, StartingBid1}} = Msg2
-  end,  
+  end, 
+  Sub1ItemId1Bid2 = StartingBid1,
+  % do not receive any message re: sub1 failed initial bid
+  receive
+    Msg3 ->
+      ct:print("sub2 ~p", [Msg3]),
+      {auction_event, {new_bid, ItemId1, Sub1ItemId1Bid2}} = Msg3
+  end,     
   ok.
