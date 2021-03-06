@@ -136,11 +136,11 @@ auction_item(state_timeout,
        Data};
     true -> 
       % new item so set 
-      % {ok, {CurrentItemId, Description, StartingBid}} = 
-      %   auction_data:get_item(AuctionId, CurrentItemId),
-      % pubsub:publish(
-      %   AuctionId, 
-      %   {auction_event, {new_item, CurrentItemId, Description, Bid}}),
+      {ok, {CurrentItemId, Description, StartingBid}} = 
+        auction_data:get_item(AuctionId, CurrentItemId),
+      pubsub:publish(
+        AuctionId, 
+        {auction_event, {new_item, CurrentItemId, Description, StartingBid}}),
       {next_state,
        auction_item, 
        Data#{% auctionid is the same

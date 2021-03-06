@@ -438,7 +438,6 @@ test_init(Config) ->
    [{state_timeout, 10000, next_item}]} = 
     auction:init([AuctionId, ItemId1, [ItemId2]]),
   M=N.
-  % ok.
 
 test_auction_ended(Config) ->
   AuctionId = ?config(auction, Config),
