@@ -30,10 +30,15 @@
          test_bid_single_bidder/1,
          test_bid_multiple_bidders/1]).
 
+-export([pub1/1,
+         sub1/1,
+         sub2/1]).
+
 all() ->
   [{group, auction_data_dep_unit},
    {group, statem_dep_unit},
-   {group, bidder_unit}].
+   {group, bidder_unit},
+   {group, bidder_integ}].
 
 groups() -> 
   [{auction_data_dep_unit, [], [test_start_link,
@@ -45,7 +50,12 @@ groups() ->
                           test_check_for_invalid_bid,
                           test_check_leading_bid,
                           test_get_next_itemid]},
-   {bidder_unit, [], [test_bid_single_bidder, test_bid_multiple_bidders]}].
+   {bidder_unit, [], [test_bid_single_bidder, 
+                      test_bid_multiple_bidders]},
+   {bidder_integ, [], [{group, bidder_integ_components}]},
+   {bidder_integ_components, [parallel], [pub1, 
+                                          sub1, 
+                                          sub2]}].
 
 %%% suite setup & tear down ---------------------------------------------------
 init_per_suite(Config) ->
@@ -79,6 +89,23 @@ init_per_group(statem_dep_unit, Config) ->
     [{auction, AuctionId} | 
       [{itemids, [ItemId1, ItemId2]} | 
         Config]]];
+init_per_group(bidder_integ, Config) ->
+  {ok, Pid} = pubsub:start_link(),
+  unlink(Pid),
+  {ok, AuctionId} = auction_data:create_auction(),
+  ok = pubsub:create_channel(AuctionId),
+  StartingBid1 = 0,
+  StartingBid2 = 1,
+  AuctionItems = 
+    [{"book", "fiction", StartingBid2}, {"hat", "blue cap", StartingBid1}],
+  {ok, [{ItemId1, "hat"}, {ItemId2, "book"}]} = 
+    auction_data:add_items(AuctionId, AuctionItems),
+  [{starting_bids, [StartingBid1, StartingBid2]} |
+    [{auction, AuctionId} | 
+      [{itemids, [ItemId1, ItemId2]} | 
+        Config]]];
+init_per_group(bidder_integ_components, Config) ->
+  Config;
 init_per_group(_, Config) ->
   {ok, Pid} = pubsub:start_link(),
   unlink(Pid),
@@ -86,13 +113,21 @@ init_per_group(_, Config) ->
 
 end_per_group(statem_dep_unit, _Config) ->
   ok;
+end_per_group(bidder_integ, Config) ->
+  AuctionId = ?config(auction, Config),
+  ok = auction_data:remove_auction(AuctionId),
+  pubsub:stop();
+end_per_group(bidder_integ_components, _Config) ->
+  ok;
 end_per_group(_, _Config) ->
   pubsub:stop().
 
 %%% testcase setup ------------------------------------------------------------
 init_per_testcase(test_start_link, Config) ->
   {ok, AuctionId1} = auction_data:create_auction(),
+  ok = pubsub:create_channel(AuctionId1),
   {ok, AuctionId2} = auction_data:create_auction(),
+  ok = pubsub:create_channel(AuctionId2),
   AuctionItems = 
     [{"book", "fiction", 1}, {"hat", "blue cap", 0}],
   {ok, [{_, "hat"}, {_, "book"}]} = 
@@ -100,6 +135,7 @@ init_per_testcase(test_start_link, Config) ->
   [{auction, [AuctionId1, AuctionId2]} | Config];
 init_per_testcase(test_get_starting_bid, Config) ->
   {ok, AuctionId} = auction_data:create_auction(),
+  ok = pubsub:create_channel(AuctionId),
   StartingBid1 = 0,
   StartingBid2 = 1,
   AuctionItems = 
@@ -112,6 +148,7 @@ init_per_testcase(test_get_starting_bid, Config) ->
         Config]]];
 init_per_testcase(test_add_winning_bidder, Config) ->
   {ok, AuctionId} = auction_data:create_auction(),
+  ok = pubsub:create_channel(AuctionId),
   StartingBid1 = 0,
   StartingBid2 = 1,
   AuctionItems = 
@@ -124,6 +161,7 @@ init_per_testcase(test_add_winning_bidder, Config) ->
         Config]]];
 init_per_testcase(test_init, Config) ->
   {ok, AuctionId} = auction_data:create_auction(),
+  ok = pubsub:create_channel(AuctionId),
   % don't need to unlink as happens in same process
   StartingBid1 = 0,
   StartingBid2 = 1,
@@ -186,6 +224,7 @@ init_per_testcase(test_check_leading_bid, Config) ->
       [{input_states, [M1, M2]} | Config]]];
 init_per_testcase(test_auction_item, Config) ->
   {ok, AuctionId} = auction_data:create_auction(),
+  ok = pubsub:create_channel(AuctionId),
   StartingBid1 = 3,
   StartingBid2 = 1,
   AuctionItems = 
@@ -216,6 +255,7 @@ init_per_testcase(test_auction_item, Config) ->
             [{input_states, [M1, M2]} | Config]]]]]]; 
 init_per_testcase(test_bid_single_bidder, Config) ->
   {ok, AuctionId} = auction_data:create_auction(),
+  ok = pubsub:create_channel(AuctionId),
   StartingBid1 = 3,
   StartingBid2 = 3,
   AuctionItems = 
@@ -228,6 +268,7 @@ init_per_testcase(test_bid_single_bidder, Config) ->
         Config]]];
 init_per_testcase(test_bid_multiple_bidders, Config) ->
   {ok, AuctionId} = auction_data:create_auction(),
+  ok = pubsub:create_channel(AuctionId),
   StartingBid1 = 5,
   StartingBid2 = 3,
   AuctionItems = 
@@ -237,7 +278,7 @@ init_per_testcase(test_bid_multiple_bidders, Config) ->
   [{auction, AuctionId} | 
     [{itemids_and_starting_bids, [{ItemId1, StartingBid1}, 
                                   {ItemId2, StartingBid2}]} | 
-      Config]];
+      Config]];  
 init_per_testcase(_, Config) ->
   Config.
 
@@ -685,3 +726,15 @@ test_bid_multiple_bidders(Config) ->
   {error, auction_ended} = 
     auction:bid(AuctionId, ItemId2, StartingBid2, Bezos).
   
+%%% multiple_bidder integration tests with pubsub -----------------------------
+pub1(Config) ->
+  AuctionId = ?config(auction, Config),
+  [ItemId1, ItemId2] = ?config(itemids, Config),
+  % 0 s
+  {ok, _} = auction:start_link(AuctionId).
+
+sub1(_Config) ->
+  ok.
+
+sub2(_Config) ->
+  ok.

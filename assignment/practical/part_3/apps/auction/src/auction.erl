@@ -34,7 +34,6 @@ start_link(AuctionId) ->
       {error, unknown_auction};
     % at least one item
     {ok, [HeadItemId | TailItemIds]} ->
-      ok = pubsub:create_channel(AuctionId),
       pubsub:publish(AuctionId, {auction_event, auction_started}),
       % returns {ok, Pid} if successful
       gen_statem:start_link({local, ?MODULE}, 
