@@ -207,6 +207,8 @@ init_per_testcase(test_check_for_invalid_bid, Config) ->
   [{response_states, [Input1, Input2]} | Config];
 init_per_testcase(test_check_leading_bid, Config) ->
   AuctionId = ?config(auction, Config),
+  {ok, _} = pubsub:start_link(),
+  ok = pubsub:create_channel(AuctionId),
   [ItemId1, ItemId2] = ?config(itemids, Config),
   NewStartingBid = 3,
   LeadingBid = 5,
@@ -737,13 +739,13 @@ test_bid_multiple_bidders(Config) ->
   
 %%% multiple_bidder integration tests with pubsub -----------------------------
 pub1(Config) ->
-  AuctionId = ?config(auction, Config),
-  [{ItemId1, StartingBid1, Description1}, 
-   {ItemId2, StartingBid2, Description2}] = 
-    ?config(itemids_info, Config),  
+  AuctionId = ?config(auction, Config), 
   timer:sleep(1000),
   % 1 s
-  {ok, _} = auction:start_link(AuctionId).
+  {ok, Pid} = auction:start_link(AuctionId),
+  % stop the process ending when pub1 ends
+  unlink(Pid),
+  timer:sleep(20000).
 
 sub1(Config) ->
   AuctionId = ?config(auction, Config),
@@ -777,7 +779,45 @@ sub1(Config) ->
       ct:print("sub1 ~p", [Msg3]),
       {auction_event, {new_bid, ItemId1, Sub1ItemId1Bid2}} = Msg3
   end,    
-  ok.
+  Sub2ItemId1Bid1 = Sub1ItemId1Bid2 + 1,
+  receive
+    Msg4 ->
+      ct:print("sub1 ~p", [Msg4]),
+      {auction_event, {new_bid, ItemId1, Sub2ItemId1Bid1}} = Msg4
+  end,  
+  % 2 s
+  receive
+    Msg5 ->
+      ct:print("sub1 ~p", [Msg5]),
+      {auction_event, {item_sold, ItemId1, Sub2ItemId1Bid1}} = Msg5
+  end,
+  receive
+    Msg6 ->
+      ct:print("sub1 ~p", [Msg6]),
+      {auction_event, {new_item, ItemId2, Description2, StartingBid2}} = Msg6
+  end,  
+  % 12 s
+  timer:sleep(5000),
+  % 17 s 
+  Sub1ItemId2Bid1 = StartingBid2 + 2,
+  {ok, leading} = 
+    auction:bid(AuctionId, ItemId2, Sub1ItemId2Bid1, Sub1),
+  receive
+    Msg7 ->
+      ct:print("sub1 ~p", [Msg7]),
+      {auction_event, {new_bid, ItemId2, Sub1ItemId2Bid1}} = Msg7
+  end, 
+  % 22 s
+  receive
+    Msg8 ->
+      ct:print("sub1 ~p", [Msg8]),
+      {auction_event, {item_sold, ItemId2, Sub1ItemId2Bid1}} = Msg8
+  end,
+  receive
+    Msg9 ->
+      ct:print("sub1 ~p", [Msg9]),
+      {auction_event, auction_closed} = Msg9
+  end.
 
 sub2(Config) ->
   AuctionId = ?config(auction, Config),
@@ -804,5 +844,42 @@ sub2(Config) ->
     Msg3 ->
       ct:print("sub2 ~p", [Msg3]),
       {auction_event, {new_bid, ItemId1, Sub1ItemId1Bid2}} = Msg3
-  end,     
-  ok.
+  end,
+  timer:sleep(1000),
+  % 2 s     
+  Sub2ItemId1Bid1 = Sub1ItemId1Bid2 + 1,
+  {ok, leading} = 
+    auction:bid(AuctionId, ItemId1, Sub2ItemId1Bid1, Sub2),
+  receive
+    Msg4 ->
+      ct:print("sub2 ~p", [Msg4]),
+      {auction_event, {new_bid, ItemId1, Sub2ItemId1Bid1}} = Msg4
+  end,  
+  receive
+    Msg5 ->
+      ct:print("sub2 ~p", [Msg5]),
+      {auction_event, {item_sold, ItemId1, Sub2ItemId1Bid1}} = Msg5
+  end,    
+  receive
+    Msg6 ->
+      ct:print("sub2 ~p", [Msg6]),
+      {auction_event, {new_item, ItemId2, Description2, StartingBid2}} = Msg6
+  end,  
+  % 17 s 
+  Sub1ItemId2Bid1 = StartingBid2 + 2,
+  receive
+    Msg7 ->
+      ct:print("sub2 ~p", [Msg7]),
+      {auction_event, {new_bid, ItemId2, Sub1ItemId2Bid1}} = Msg7
+  end, 
+  % 22 s
+  receive
+    Msg8 ->
+      ct:print("sub2 ~p", [Msg8]),
+      {auction_event, {item_sold, ItemId2, Sub1ItemId2Bid1}} = Msg8
+  end,
+  receive
+    Msg9 ->
+      ct:print("sub2 ~p", [Msg9]),
+      {auction_event, auction_closed} = Msg9
+  end.
