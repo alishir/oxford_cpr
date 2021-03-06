@@ -39,9 +39,9 @@ groups() ->
   [{auction_data_dep_unit, [], [test_start_link,
                                 test_auction_item,
                                 test_get_starting_bid,
-                                test_add_winning_bidder]},
-   {statem_dep_unit, [], [test_init,
-                          test_auction_ended,
+                                test_add_winning_bidder, 
+                                test_init]},
+   {statem_dep_unit, [], [test_auction_ended,
                           test_check_for_invalid_bid,
                           test_check_leading_bid,
                           test_get_next_itemid]},
@@ -122,15 +122,26 @@ init_per_testcase(test_add_winning_bidder, Config) ->
     [{auction, AuctionId} | 
       [{itemids, [ItemId1, ItemId2]} | 
         Config]]];
-% init_per_testcase(test_init, Config) ->
-%   {ok, AuctionId} = auction_data:create_auction(),
-%   % don't need to unlink as happens in same process
-%   {ok, _} = pubsub:start_link(), 
-%   AuctionItems = 
-%     [{"book", "fiction", StartingBid2}, {"hat", "blue cap", StartingBid1}],
-%   {ok, [{ItemId1, "hat"}, {ItemId2, "book"}]} = 
-%     auction_data:add_items(AuctionId, AuctionItems),
-%   [{itemids, [ItemId1, ItemId2]}, [{auction1, AuctionId} | Config]];
+init_per_testcase(test_init, Config) ->
+  {ok, AuctionId} = auction_data:create_auction(),
+  % don't need to unlink as happens in same process
+  StartingBid1 = 0,
+  StartingBid2 = 1,
+  AuctionItems = 
+    [{"book", "fiction", StartingBid2}, {"hat", "blue cap", StartingBid1}],
+  {ok, [{ItemId1, "hat"}, {ItemId2, "book"}]} = 
+    auction_data:add_items(AuctionId, AuctionItems),
+  M = #{auctionid => AuctionId, 
+        current_itemid => ItemId1,
+        remaining_itemids => [ItemId2], 
+        auctioned_itemids => [],
+        starting_bid => undefined,
+        leading_bid => undefined,
+        leading_bidder => undefined},
+  [{state_map, M} | 
+    [{itemids, [ItemId1, ItemId2]} | 
+      [{auction, AuctionId} | 
+        Config]]];
 init_per_testcase(test_check_for_invalid_bid, Config) ->
   AuctionId = ?config(auction, Config),
   [ItemId1, ItemId2] = ?config(itemids, Config),
@@ -244,9 +255,9 @@ end_per_testcase(test_get_starting_bid, Config) ->
 end_per_testcase(test_add_winning_bidder, Config) ->
   AuctionId = ?config(auction, Config),
   ok = auction_data:remove_auction(AuctionId);
-% end_per_testcase(test_init, Config) ->
-%   AuctionId = ?config(auction, Config),
-%   ok = auction_data:remove_auction(AuctionId);
+end_per_testcase(test_init, Config) ->
+  AuctionId = ?config(auction, Config),
+  ok = auction_data:remove_auction(AuctionId);
 end_per_testcase(test_bid_single_bidder, Config) ->
   AuctionId = ?config(auction, Config),
   ok = auction_data:remove_auction(AuctionId);

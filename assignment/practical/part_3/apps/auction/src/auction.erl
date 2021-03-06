@@ -67,11 +67,11 @@ subscribe(AuctionId) ->
 
 %%% Gen StateM Callbacks ------------------------------------------------------
 init([AuctionId, HeadItemId, TailItemIds]) ->
-  % {ok, {HeadItemId, Description, StartingBid}} = 
-  %   auction_data:get_item(AuctionId, HeadItemId),
-  % pubsub:publish(
-  %   AuctionId, 
-  %   {auction_event, {new_item, HeadItemId, Description, StartingBid}}),
+  {ok, {HeadItemId, Description, StartingBid}} = 
+    auction_data:get_item(AuctionId, HeadItemId),
+  pubsub:publish(
+    AuctionId, 
+    {auction_event, {new_item, HeadItemId, Description, StartingBid}}),
   State = auction_item,
   Data = #{auctionid => AuctionId, 
            current_itemid => HeadItemId,
