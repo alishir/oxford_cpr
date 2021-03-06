@@ -34,7 +34,6 @@ start_link(AuctionId) ->
       {error, unknown_auction};
     % at least one item
     {ok, [HeadItemId | TailItemIds]} ->
-      ok = pubsub:create_channel(AuctionId),
       pubsub:publish(AuctionId, {auction_event, auction_started}),
       % returns {ok, Pid} if successful
       gen_statem:start_link({local, ?MODULE}, 
@@ -59,8 +58,9 @@ bid(AuctionId, ItemId, Bid, Bidder) ->
 subscribe(AuctionId) ->
   case pubsub:subscribe(AuctionId) of
     ok -> 
-      ChannelPid = pubsub:monitor(AuctionId),
-      {ok, erlang:monitor(process, ChannelPid)};
+      {ok, ChannelPid} = pubsub:monitor(AuctionId),
+      Reference = erlang:monitor(process, ChannelPid),
+      {ok, Reference};
     {error, unknown_channel} -> 
       {error, unknown_auction}
   end.
@@ -106,7 +106,6 @@ auction_item({call,From},
   % check if bid is leading
     true -> 
       % if new item need to get starting_bid
-      pubsub:publish(AuctionId, {auction_event, {new_bid, CurrentItemId, Bid}}),
       NewStartingBid = get_starting_bid(AuctionId, CurrentItemId, StartingBid),
       check_leading_bid(Data#{starting_bid := StartingBid}, 
                         From, 
@@ -136,11 +135,12 @@ auction_item(state_timeout,
        Data};
     true -> 
       % new item so set 
-      {ok, {CurrentItemId, Description, StartingBid}} = 
-        auction_data:get_item(AuctionId, CurrentItemId),
+      {ok, {NewCurrentItemId, NewDescription, NewStartingBid}} = 
+        auction_data:get_item(AuctionId, NewCurrentItemId),
       pubsub:publish(
         AuctionId, 
-        {auction_event, {new_item, CurrentItemId, Description, StartingBid}}),
+        {auction_event, 
+         {new_item, NewCurrentItemId, NewDescription, NewStartingBid}}),
       {next_state,
        auction_item, 
        Data#{% auctionid is the same
@@ -206,6 +206,10 @@ check_leading_bid(Data, From, Bid, Bidder, StartingBid, LeadingBid) ->
            Data, 
            [{reply, From, {ok, {not_leading, StartingBid}}}]};
         true -> % leading because higher than StartingBid and no LeadingBid
+          AuctionId = maps:get(auctionid, Data),
+          ItemId = maps:get(current_itemid, Data),
+          pubsub:publish(AuctionId, 
+                         {auction_event, {new_bid, ItemId, Bid}}),
           {next_state,
            auction_item, 
            Data#{leading_bid := Bid,
@@ -220,6 +224,10 @@ check_leading_bid(Data, From, Bid, Bidder, StartingBid, LeadingBid) ->
            Data, 
            [{reply, From, {ok, {not_leading, LeadingBid}}}]};
         true -> % leading because higher than LeadingBid
+          AuctionId = maps:get(auctionid, Data),
+          ItemId = maps:get(current_itemid, Data),
+          pubsub:publish(AuctionId, 
+                         {auction_event, {new_bid, ItemId, Bid}}),
           {next_state,
            auction_item, 
            Data#{leading_bid := Bid,
@@ -235,7 +243,7 @@ add_winning_bidder(AuctionId, CurrentItemId, LeadingBid, LeadingBidder) ->
     LeadingBid =/= undefined -> % we have a winner!
       pubsub:publish(
         AuctionId, 
-        {auction_event, {item_sold, CurrentItemId, LeadingBidder}}),
+        {auction_event, {item_sold, CurrentItemId, LeadingBid}}),
       auction_data:add_winning_bidder(
         AuctionId, CurrentItemId, LeadingBid, LeadingBidder);
     true -> 

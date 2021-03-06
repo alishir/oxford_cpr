@@ -15,7 +15,7 @@ init([Pid]) ->
     {ok, Pid}.
 
 handle_event(Event, Pid) ->
-    Pid ! {channel_feed, Event},
+    Pid ! Event,
     {ok, Pid}.
 
 handle_call(_, State) ->
