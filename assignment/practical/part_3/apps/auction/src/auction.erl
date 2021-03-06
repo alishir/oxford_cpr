@@ -233,9 +233,9 @@ check_leading_bid(Data, From, Bid, Bidder, StartingBid, LeadingBid) ->
 add_winning_bidder(AuctionId, CurrentItemId, LeadingBid, LeadingBidder) ->
   if 
     LeadingBid =/= undefined -> % we have a winner!
-      % pubsub:publish(
-      %   AuctionId, 
-      %   {auction_event, {item_sold, ItemId, LeadingBidder}}),
+      pubsub:publish(
+        AuctionId, 
+        {auction_event, {item_sold, CurrentItemId, LeadingBidder}}),
       auction_data:add_winning_bidder(
         AuctionId, CurrentItemId, LeadingBid, LeadingBidder);
     true -> 
