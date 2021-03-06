@@ -168,7 +168,7 @@ sub1(Config) ->
   receive
     Msg1 ->
       ct:print("sub1 ~p", [Msg1]),
-      {channel_feed, {channel_event, {new_event, 5}}} = Msg1
+      {channel_event, {new_event, 5}} = Msg1
   end,
   % 2 s
   timer:sleep(1000),
@@ -178,24 +178,24 @@ sub1(Config) ->
   % here there is a race condition and we dont' want to recurse so repeat 
   % twice
   receive
-    {channel_feed, {channel_event, {new_vote, 7}}} ->
-      ct:print("sub1 ~p", [{channel_feed, {channel_event, {new_vote, 7}}}]);
-    {channel_feed, {channel_event, {new_event, 3}}} ->
-      ct:print("sub1 ~p", [{channel_feed, {channel_event, {new_event, 3}}}])
+    {channel_event, {new_vote, 7}} ->
+      ct:print("sub1 ~p", [{channel_event, {new_vote, 7}}]);
+    {channel_event, {new_event, 3}} ->
+      ct:print("sub1 ~p", [{channel_event, {new_event, 3}}])
   end,
   receive
-    {channel_feed, {channel_event, {new_vote, 7}}} ->
-      ct:print("sub1 ~p", [{channel_feed, {channel_event, {new_vote, 7}}}]);
-    {channel_feed, {channel_event, {new_event, 3}}} ->
-      ct:print("sub1 ~p", [{channel_feed, {channel_event, {new_event, 3}}}])
+    {channel_event, {new_vote, 7}} ->
+      ct:print("sub1 ~p", [{channel_event, {new_vote, 7}}]);
+    {channel_event, {new_event, 3}} ->
+      ct:print("sub1 ~p", [{channel_event, {new_event, 3}}])
   end,
   % 4 s
   ok = pubsub:unsubscribe(Channel1),
-  % doesn't receive {channel_event, {event_over}}
+  % doesn't receive {event_over}
   receive
     Msg2 ->
       ct:print("sub1 ~p", [Msg2]),
-      {channel_feed, {channel_closed, {channel_2}}} = Msg2
+      {channel_closed, {channel_2}} = Msg2
   end.
   % 5 s 
 
@@ -207,20 +207,20 @@ sub2(Config) ->
   receive
     Msg1 ->
       ct:print("sub2 ~p", [Msg1]),
-      {channel_feed, {channel_event, {new_event, 5}}} = Msg1
+      {channel_event, {new_event, 5}} = Msg1
   end,
   % 2 s
-  % doesn't receive {channel_event, {new_vote, 7}}
+  % doesn't receive {channel_event, {new_vote, 7}
   receive
     Msg2 ->
       ct:print("sub2 ~p", [Msg2]),
-      {channel_feed, {channel_event, {event_over}}} = Msg2
+      {channel_event, {event_over}} = Msg2
   end,
   % 5 s 
   receive
     Msg3 ->
       ct:print("sub2 ~p", [Msg3]),
-      {channel_feed, {channel_closed, {channel_1}}} = Msg3
+      {channel_closed, {channel_1}} = Msg3
   end.
   % doesn't receive {channel_closed, {channel_2}}
 

@@ -730,11 +730,28 @@ test_bid_multiple_bidders(Config) ->
 pub1(Config) ->
   AuctionId = ?config(auction, Config),
   [ItemId1, ItemId2] = ?config(itemids, Config),
-  % 0 s
+  timer:sleep(1000),
+  % 1 s
   {ok, _} = auction:start_link(AuctionId).
 
-sub1(_Config) ->
+sub1(Config) ->
+  AuctionId = ?config(auction, Config),
+  [ItemId1, ItemId2] = ?config(itemids, Config),
+  % 0 s
+  {ok, MonitorRef} = auction:subscribe(AuctionId),
+  % 1 s
+  receive
+    Msg1 ->
+      ct:print("sub1 ~p", [Msg1]),
+      {channel_feed, {channel_event, {new_event, 5}}} = Msg1
+  end,
   ok.
 
-sub2(_Config) ->
+sub2(Config) ->
+  AuctionId = ?config(auction, Config),
+  [ItemId1, ItemId2] = ?config(itemids, Config),
+  % 0 s
+  {ok, MonitorRef} = auction:subscribe(AuctionId),
+  % 1 s 
+
   ok.
