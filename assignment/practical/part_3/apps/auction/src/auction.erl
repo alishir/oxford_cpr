@@ -54,6 +54,8 @@ start_link(AuctionId) ->
 bid(AuctionId, ItemId, Bid, Bidder) ->
   gen_statem:call(?MODULE, {bid, AuctionId, ItemId, Bid, Bidder}).
 
+%% @doc A way to connect the publish-subscribe engine to the auction engine
+%% creating channels when auctions are created and generate events.
 -spec subscribe(reference()) -> {ok, reference()} | {error, unknown_auction}.
 subscribe(AuctionId) ->
   case pubsub:subscribe(AuctionId) of

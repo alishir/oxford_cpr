@@ -101,7 +101,7 @@ add_items(AuctionId, ItemsList) ->
   end,
   mnesia:activity(transaction, F).
 
-%% @doc 
+%% @doc Writes the winning bidder and bid after an item is sold.
 -spec add_winning_bidder(reference(), itemid(), non_neg_integer(), 
   bidderid()) -> 
   ok | {error, unknown_item | unknown_auction}.
@@ -196,6 +196,7 @@ get_item(AuctionId, ItemId) ->
   end,
   mnesia:activity(transaction, F).
 
+%% @doc Gets the winning bidder for an ItemId
 -spec get_winning_bidder(reference(), itemid()) ->
   {ok, {non_neg_integer(), bidderid()}} |
   {ok, {undefined, undefined}} | 
@@ -209,7 +210,8 @@ get_winning_bidder(AuctionId, ItemId) ->
         case mnesia:read({auction_data, ItemId}) of 
           [{auction_data, ItemId, AuctionId, _, _, _, undefined, undefined}] ->
             {ok, {undefined, undefined}};
-          [{auction_data, ItemId, AuctionId, _, _, _, WinningBid, WinningBidder}] ->
+          [{auction_data, ItemId, AuctionId, _, _, _, WinningBid, 
+            WinningBidder}] ->
             {ok, {WinningBid, WinningBidder}};
           _ ->
             {error, unknown_item}

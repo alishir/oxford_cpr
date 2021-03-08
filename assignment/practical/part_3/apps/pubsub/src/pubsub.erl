@@ -21,40 +21,39 @@
 start_link() ->
   gen_server:start_link({global, ?MODULE}, ?MODULE, [], []).
 
-%% @doc
+%% @doc Creates channels where every channel is an auction
 -spec create_channel(reference()) -> ok | {error, duplicate_channel}.
 create_channel(Channel) ->
   gen_server:call({global, ?MODULE}, {create_channel, Channel}).  
 
-%% @doc
+%% @doc Deletes channels where every channel is an auction
 -spec delete_channel(reference()) -> ok | {error, unknown_channel}.
 delete_channel(Channel) ->
   gen_server:call({global, ?MODULE}, {delete_channel, Channel}).
 
-%% @doc
+%% @doc Users can subscribe to auctions only if the channel has been created
 -spec subscribe(reference()) -> ok | {error, unknown_channel}.
 subscribe(Channel) ->
   gen_server:call({global, ?MODULE}, {subscribe_channel, Channel}).
 
-%% @doc
+%% @doc When a channel is deleted all users are unsubscribed.
 -spec unsubscribe(reference()) -> ok | {error, unknown_channel}.
 unsubscribe(Channel) ->
   gen_server:call({global, ?MODULE}, {unsubscribe_channel, Channel}).
 
-%% @doc
+%% @doc A function to send notifications to the subscriber. Use the Pid of the 
+%% process that called pubsub:subscribe/1 sending it Event as a message
 -spec publish(reference(), term()) -> ok | {error, unknown_channel}.
 publish(Channel, Event) ->
   gen_server:call({global, ?MODULE}, {publish_channel, Channel, Event}).
 
 %%% Additional methods --------------------------------------------------------
 
-%% @doc
 -spec monitor(reference()) -> 
   {ok, reference()} | {error, unknown_channel}.
 monitor(Channel) ->
   gen_server:call({global, ?MODULE}, {monitor_channel, Channel}).
 
-%% @doc
 -spec stop() -> ok.
 stop() ->
     gen_server:call({global, ?MODULE}, stop).
