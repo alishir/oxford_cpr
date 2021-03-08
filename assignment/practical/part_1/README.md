@@ -10,5 +10,5 @@ Build
 
 Test
 ----
-
-    $ rebar3 ct --suite test/auction_data_SUITE
+    $ cd practical/part_1
+    $ rebar3 ct

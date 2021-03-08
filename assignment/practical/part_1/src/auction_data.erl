@@ -36,7 +36,6 @@
 start(normal, []) ->
   mnesia:wait_for_tables([auction_ids, 
                           auction_data], 5000).
-  % auction_data_sup:start_link().
 
 stop(_) -> ok.  
 
@@ -154,7 +153,6 @@ remove_auction(AuctionId) ->
         {error, unknown_auction};
       false ->
         mnesia:delete({auction_ids, AuctionId})
-        % TODO - should we delete Item information as well?        
     end
   end,
   mnesia:activity(transaction, F).

@@ -240,7 +240,7 @@ end_per_testcase(test_bid_multiple_bidders, Config) ->
 end_per_testcase(_, _Config) ->
   ok.
 
-%%% auction_data_dep_unit_unit tests -----------------------------------------------
+%%% auction_data_dep_unit_unit tests ------------------------------------------
 test_start_link(Config) ->
   [AuctionId1, AuctionId2] = ?config(auction, Config),
   {ok, _} = auction:start_link(AuctionId1),
@@ -267,7 +267,8 @@ test_add_winning_bidder(Config) ->
   [ItemId1, ItemId2] = ?config(itemids, Config),
   LeadingBid = 3,
   LeadingBidder = {"elon musk", make_ref()},
-  ok = auction:add_winning_bidder(AuctionId, ItemId1, LeadingBid, LeadingBidder),
+  ok = 
+    auction:add_winning_bidder(AuctionId, ItemId1, LeadingBid, LeadingBidder),
   {ok, {LeadingBid, LeadingBidder}} = 
     auction_data:get_winning_bidder(AuctionId, ItemId1),
   ok = auction:add_winning_bidder(AuctionId, ItemId2, undefined, undefined),
@@ -310,7 +311,8 @@ test_auction_item(Config) ->
   % test for bid < starting bid and no leading bid
   E3 = M_no_leading,
   LessThanStartingBid = 2,
-  LessThanStartingBidMessage = {bid, AuctionId, ItemId1, LessThanStartingBid, Bidder},
+  LessThanStartingBidMessage = 
+    {bid, AuctionId, ItemId1, LessThanStartingBid, Bidder},
   {keep_state,
    N3,
    [{reply, From, {ok, {not_leading, StartingBid1}}}]} = 
@@ -320,7 +322,8 @@ test_auction_item(Config) ->
   E3 = N3,
   % test for bid >= starting bid and no leading bid
   MoreThanStartingBid = 4,
-  MoreThanStartingBidMessage = {bid, AuctionId, ItemId1, MoreThanStartingBid, Bidder},
+  MoreThanStartingBidMessage = 
+    {bid, AuctionId, ItemId1, MoreThanStartingBid, Bidder},
   E4 = #{auctionid => AuctionId, 
          current_itemid => ItemId1,
          remaining_itemids => [ItemId2], 
@@ -339,7 +342,8 @@ test_auction_item(Config) ->
   E4 = N4,
   % test for bid <= starting bid and leading bid
   LessThanLeadingBid = 4,
-  LessThanLeadingBidMessage = {bid, AuctionId, ItemId1, LessThanLeadingBid, Bidder},
+  LessThanLeadingBidMessage = 
+    {bid, AuctionId, ItemId1, LessThanLeadingBid, Bidder},
   E5 = #{auctionid => AuctionId, 
          current_itemid => ItemId1,
          remaining_itemids => [ItemId2], 
@@ -356,7 +360,8 @@ test_auction_item(Config) ->
   E5 = N5,
   % test for bid <= starting bid and leading bid
   MoreThanLeadingBid = 6,
-  MoreThanLeadingBidMessage = {bid, AuctionId, ItemId1, MoreThanLeadingBid, Bidder},
+  MoreThanLeadingBidMessage = 
+    {bid, AuctionId, ItemId1, MoreThanLeadingBid, Bidder},
   E6 = #{auctionid => AuctionId, 
          current_itemid => ItemId1,
          remaining_itemids => [ItemId2], 
