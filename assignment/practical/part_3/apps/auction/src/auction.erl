@@ -15,6 +15,8 @@
 -export([get_starting_bid/3, check_for_invalid_bid/7, check_leading_bid/6, 
   add_winning_bidder/4, get_next_itemid/1]).
 
+% note in part_4 this definition is changed to include node() to work for
+% distributed erlang as well
 -type itemid() :: {integer(), reference()}.
 -type bidderid() :: {nonempty_string(), reference()}.
 
@@ -36,7 +38,7 @@ start_link(AuctionId) ->
     {ok, [HeadItemId | TailItemIds]} ->
       pubsub:publish(AuctionId, {auction_event, auction_started}),
       % returns {ok, Pid} if successful
-      gen_statem:start_link({local, ?MODULE}, 
+      gen_statem:start_link(% {local, ?MODULE}, 
                             ?MODULE, 
                             [AuctionId, HeadItemId, TailItemIds], 
                             []);
