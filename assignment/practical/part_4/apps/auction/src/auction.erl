@@ -15,9 +15,9 @@
 -export([get_starting_bid/3, check_for_invalid_bid/7, check_leading_bid/6, 
   add_winning_bidder/4, get_next_itemid/1]).
 
-% note in part_4 this definition is changed to include node() to work for
-% distributed erlang as well
--type itemid() :: {integer(), reference()}.
+% note in part_4 we have changed this definition to work for distributed erlang
+% as well by adding node()
+-type itemid() :: {node(), integer(), reference()}.
 -type bidderid() :: {nonempty_string(), reference()}.
 
 %%% Auction API ---------------------------------------------------------------
