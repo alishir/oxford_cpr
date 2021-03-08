@@ -9,15 +9,15 @@
 
 -behaviour(gen_statem).
 
--export([start_link/1, bid/4]).
+-export([start_link/1, bid/4, subscribe/1]).
 -export([auction_item/3, auction_ended/3]).
 -export([init/1, callback_mode/0, terminate/3]).
 -export([get_starting_bid/3, check_for_invalid_bid/7, check_leading_bid/6, 
   add_winning_bidder/4, get_next_itemid/1]).
 
-% note in part_4 this definition is changed to include node() to work for
-% distributed erlang as well
--type itemid() :: {integer(), reference()}.
+% note in part_4 we have changed this definition to work for distributed erlang
+% as well by adding node()
+-type itemid() :: {node(), integer(), reference()}.
 -type bidderid() :: {nonempty_string(), reference()}.
 
 %%% Auction API ---------------------------------------------------------------
@@ -36,6 +36,7 @@ start_link(AuctionId) ->
       {error, unknown_auction};
     % at least one item
     {ok, [HeadItemId | TailItemIds]} ->
+      pubsub:publish(AuctionId, {auction_event, auction_started}),
       % returns {ok, Pid} if successful
       gen_statem:start_link({local, ?MODULE}, 
                             ?MODULE, 
@@ -55,8 +56,26 @@ start_link(AuctionId) ->
 bid(AuctionId, ItemId, Bid, Bidder) ->
   gen_statem:call(?MODULE, {bid, AuctionId, ItemId, Bid, Bidder}).
 
+%% @doc A way to connect the publish-subscribe engine to the auction engine
+%% creating channels when auctions are created and generate events.
+-spec subscribe(reference()) -> {ok, reference()} | {error, unknown_auction}.
+subscribe(AuctionId) ->
+  case pubsub:subscribe(AuctionId) of
+    ok -> 
+      {ok, ChannelPid} = pubsub:monitor(AuctionId),
+      Reference = erlang:monitor(process, ChannelPid),
+      {ok, Reference};
+    {error, unknown_channel} -> 
+      {error, unknown_auction}
+  end.
+
 %%% Gen StateM Callbacks ------------------------------------------------------
 init([AuctionId, HeadItemId, TailItemIds]) ->
+  {ok, {HeadItemId, Description, StartingBid}} = 
+    auction_data:get_item(AuctionId, HeadItemId),
+  pubsub:publish(
+    AuctionId, 
+    {auction_event, {new_item, HeadItemId, Description, StartingBid}}),
   State = auction_item,
   Data = #{auctionid => AuctionId, 
            current_itemid => HeadItemId,
@@ -114,11 +133,18 @@ auction_item(state_timeout,
   {NewCurrentItemId, NewRemainingItemIds} = get_next_itemid(RemainingItemIds),
   if 
     NewCurrentItemId =:= undefined ->
+      pubsub:publish(AuctionId, {auction_event, auction_closed}),
       {next_state,
        auction_ended,
        Data};
     true -> 
       % new item so set 
+      {ok, {NewCurrentItemId, NewDescription, NewStartingBid}} = 
+        auction_data:get_item(AuctionId, NewCurrentItemId),
+      pubsub:publish(
+        AuctionId, 
+        {auction_event, 
+         {new_item, NewCurrentItemId, NewDescription, NewStartingBid}}),
       {next_state,
        auction_item, 
        Data#{% auctionid is the same
@@ -184,6 +210,10 @@ check_leading_bid(Data, From, Bid, Bidder, StartingBid, LeadingBid) ->
            Data, 
            [{reply, From, {ok, {not_leading, StartingBid}}}]};
         true -> % leading because higher than StartingBid and no LeadingBid
+          AuctionId = maps:get(auctionid, Data),
+          ItemId = maps:get(current_itemid, Data),
+          pubsub:publish(AuctionId, 
+                         {auction_event, {new_bid, ItemId, Bid}}),
           {next_state,
            auction_item, 
            Data#{leading_bid := Bid,
@@ -198,6 +228,10 @@ check_leading_bid(Data, From, Bid, Bidder, StartingBid, LeadingBid) ->
            Data, 
            [{reply, From, {ok, {not_leading, LeadingBid}}}]};
         true -> % leading because higher than LeadingBid
+          AuctionId = maps:get(auctionid, Data),
+          ItemId = maps:get(current_itemid, Data),
+          pubsub:publish(AuctionId, 
+                         {auction_event, {new_bid, ItemId, Bid}}),
           {next_state,
            auction_item, 
            Data#{leading_bid := Bid,
@@ -211,6 +245,9 @@ check_leading_bid(Data, From, Bid, Bidder, StartingBid, LeadingBid) ->
 add_winning_bidder(AuctionId, CurrentItemId, LeadingBid, LeadingBidder) ->
   if 
     LeadingBid =/= undefined -> % we have a winner!
+      pubsub:publish(
+        AuctionId, 
+        {auction_event, {item_sold, CurrentItemId, LeadingBid}}),
       auction_data:add_winning_bidder(
         AuctionId, CurrentItemId, LeadingBid, LeadingBidder);
     true -> 

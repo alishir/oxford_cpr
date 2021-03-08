@@ -20,6 +20,8 @@
   remove_item/2
 ]).
 
+% note in part_4 this definition is changed to include node() to work for
+% distributed erlang as well
 -type itemid() :: {integer(), reference()}.
 -type item_info() :: {nonempty_string(), nonempty_string(), non_neg_integer()}.
 -type itemid_info() :: {itemid(), nonempty_string(), non_neg_integer()}.

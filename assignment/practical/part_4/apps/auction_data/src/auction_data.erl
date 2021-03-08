@@ -23,9 +23,9 @@
   remove_item/2
 ]).
 
-% note in part_4 this definition is changed to include node() to work for
-% distributed erlang as well
--type itemid() :: {integer(), reference()}.
+% note in part_4 we have changed this definition to work for distributed erlang
+% as well by adding node()
+-type itemid() :: {node(), integer(), reference()}.
 -type item_info() :: {nonempty_string(), nonempty_string(), non_neg_integer()}.
 -type itemid_info() :: {itemid(), nonempty_string(), non_neg_integer()}.
 -type bidderid() :: {nonempty_string(), reference()}.
@@ -86,7 +86,7 @@ add_items(AuctionId, ItemsList) ->
       [_] ->
         ItemsIdList = lists:foldl(
           fun({Item, Desc, Bid}, Output) -> 
-            ItemId = {erlang:monotonic_time(), make_ref()},
+            ItemId = {node(), erlang:monotonic_time(), make_ref()},
             mnesia:write(#auction_data{item_id=ItemId,
                                        auction_id=AuctionId,
                                        item=Item,
