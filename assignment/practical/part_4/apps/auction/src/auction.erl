@@ -9,7 +9,7 @@
 
 -behaviour(gen_statem).
 
--export([start_link/1, bid/4, subscribe/1]).
+-export([start_link/1, bid/5, subscribe/1]).
 -export([auction_item/3, auction_ended/3]).
 -export([init/1, callback_mode/0, terminate/3]).
 -export([get_starting_bid/3, check_for_invalid_bid/7, check_leading_bid/6, 
@@ -38,8 +38,7 @@ start_link(AuctionId) ->
     {ok, [HeadItemId | TailItemIds]} ->
       pubsub:publish(AuctionId, {auction_event, auction_started}),
       % returns {ok, Pid} if successful
-      gen_statem:start_link({local, ?MODULE}, 
-                            ?MODULE, 
+      gen_statem:start_link(?MODULE, 
                             [AuctionId, HeadItemId, TailItemIds], 
                             []);
     {error, unknown_auction} ->
@@ -50,11 +49,11 @@ start_link(AuctionId) ->
 %% They will include their Bid and their Bidder Id. The user will either be
 %% informed they are leading the ItemId auction, or they are non-leading and
 %% what the leading bid is, or that there is some error.
--spec bid(reference(), itemid(), non_neg_integer(), bidderid()) ->
+-spec bid(pid(), reference(), itemid(), non_neg_integer(), bidderid()) ->
 {ok, leading | {not_leading, non_neg_integer()}} | 
 {error, invalid_auction | invalid_item | auction_ended | item_already_sold}.
-bid(AuctionId, ItemId, Bid, Bidder) ->
-  gen_statem:call(?MODULE, {bid, AuctionId, ItemId, Bid, Bidder}).
+bid(AuctionPid, AuctionId, ItemId, Bid, Bidder) ->
+  gen_statem:call(AuctionPid, {bid, AuctionId, ItemId, Bid, Bidder}).
 
 %% @doc A way to connect the publish-subscribe engine to the auction engine
 %% creating channels when auctions are created and generate events.

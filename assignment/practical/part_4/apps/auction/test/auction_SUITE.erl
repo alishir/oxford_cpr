@@ -30,15 +30,9 @@
          test_bid_single_bidder/1,
          test_bid_multiple_bidders/1]).
 
--export([pub1/1,
-         sub1/1,
-         sub2/1]).
-
 all() ->
   [{group, auction_data_dep_unit},
-   {group, statem_dep_unit},
-   {group, bidder_unit},
-   {group, bidder_integ}].
+   {group, statem_dep_unit}].
 
 groups() -> 
   [{auction_data_dep_unit, [], [test_start_link,
@@ -51,11 +45,7 @@ groups() ->
                           test_check_leading_bid,
                           test_get_next_itemid]},
    {bidder_unit, [], [test_bid_single_bidder, 
-                      test_bid_multiple_bidders]},
-   {bidder_integ, [], [{group, bidder_integ_components}]},
-   {bidder_integ_components, [parallel], [pub1, 
-                                          sub1, 
-                                          sub2]}].
+                      test_bid_multiple_bidders]}].
 
 %%% suite setup & tear down ---------------------------------------------------
 init_per_suite(Config) ->
@@ -89,29 +79,6 @@ init_per_group(statem_dep_unit, Config) ->
     [{auction, AuctionId} | 
       [{itemids, [ItemId1, ItemId2]} | 
         Config]]];
-init_per_group(bidder_integ, Config) ->
-  {ok, Pid} = pubsub:start_link(),
-  unlink(Pid),
-  {ok, AuctionId} = auction_data:create_auction(),
-  ok = pubsub:create_channel(AuctionId),
-  StartingBid1 = 3,
-  StartingBid2 = 2,
-  Description1 = "blue cap",
-  Description2 = "fiction",
-  AuctionItems = 
-    [{"book", Description2, StartingBid2}, 
-     {"hat", Description1, StartingBid1}],
-  {ok, [{ItemId1, "hat"}, {ItemId2, "book"}]} = 
-    auction_data:add_items(AuctionId, AuctionItems),
-  Sub1 = {"elon musk", make_ref()},
-  Sub2 = {"jeff bezos", make_ref()},
-  [{subscribers, [Sub1, Sub2]} | 
-    [{auction, AuctionId} | 
-      [{itemids_info, lists:sort([{ItemId1, StartingBid1, Description1}, 
-                                  {ItemId2, StartingBid2, Description2}])} | 
-        Config]]];  
-init_per_group(bidder_integ_components, Config) ->
-  Config;
 init_per_group(_, Config) ->
   {ok, Pid} = pubsub:start_link(),
   unlink(Pid),
@@ -659,28 +626,32 @@ test_bid_single_bidder(Config) ->
   [ItemId1, ItemId2] = lists:sort(?config(itemids, Config)),
   [StartingBid1, StartingBid2] = ?config(starting_bids, Config),
   Bidder = {"elon musk", make_ref()},
-  {ok, _} = auction:start_link(AuctionId),  
+  {ok, AuctionPid} = auction:start_link(AuctionId),  
   {ok, {not_leading, StartingBid1}} = 
-    auction:bid(AuctionId, 
+    auction:bid(AuctionPid,
+                AuctionId, 
                 ItemId1, 
                 StartingBid1 -1, 
                 Bidder),
   timer:sleep(5000),
   {ok, leading} = 
-    auction:bid(AuctionId,
+    auction:bid(AuctionPid,
+                AuctionId,
                 ItemId1,
                 StartingBid1,
                 Bidder),
   % we try to bid for ItemId2 too early - ItemId1 not sold yet
   {error, invalid_item} = 
-    auction:bid(AuctionId,
+    auction:bid(AuctionPid,
+                AuctionId,
                 ItemId2,
                 StartingBid2+5,
                 Bidder),
   % after 10s auction changes item and it is sold
   timer:sleep(15000), 
   {error, item_already_sold} = 
-    auction:bid(AuctionId,
+    auction:bid(AuctionPid, 
+                AuctionId,
                 ItemId1,
                 StartingBid1+1,
                 Bidder),
@@ -689,14 +660,16 @@ test_bid_single_bidder(Config) ->
   {ok, {LeadingBidderItemId1, Bidder}} = 
     auction_data:get_winning_bidder(AuctionId, ItemId1),
   {ok, leading} = 
-    auction:bid(AuctionId,
+    auction:bid(AuctionPid, 
+                AuctionId,
                 ItemId2,
                 StartingBid2+5,
                 Bidder),
   % wait for ItemId2 to be sold and auction to be over
   timer:sleep(10000),
   {error, auction_ended} = 
-    auction:bid(AuctionId,
+    auction:bid(AuctionPid, 
+                AuctionId,
                 ItemId2,
                 StartingBid2+7,
                 Bidder),
@@ -712,174 +685,28 @@ test_bid_multiple_bidders(Config) ->
     = lists:sort(?config(itemids_and_starting_bids, Config)),
   Elon = {"elon musk", make_ref()},
   Bezos = {"jeff bezos", make_ref()},
-  {ok, _} = auction:start_link(AuctionId),  
+  {ok, AuctionPid} = auction:start_link(AuctionId),  
   % 0s = elon bids < StartingBid
   {ok, {not_leading, StartingBid1}} =
-    auction:bid(AuctionId, ItemId1, StartingBid1-1, Elon),
+    auction:bid(AuctionPid, AuctionId, ItemId1, StartingBid1-1, Elon),
   % 5s = jeff bids ItemId2 too early
   timer:sleep(5000),
   {error, invalid_item} = 
-    auction:bid(AuctionId, ItemId2, StartingBid2, Bezos),
+    auction:bid(AuctionPid, AuctionId, ItemId2, StartingBid2, Bezos),
   % 5s = jeff bids ItemId1 
   {ok, leading} = 
-    auction:bid(AuctionId, ItemId1, StartingBid1, Bezos),
+    auction:bid(AuctionPid, AuctionId, ItemId1, StartingBid1, Bezos),
   % 10s = elon counter-bids ItemId1
   timer:sleep(5000),
   {ok, leading} = 
-    auction:bid(AuctionId, ItemId1, StartingBid1 + 1, Elon),
+    auction:bid(AuctionPid, AuctionId, ItemId1, StartingBid1 + 1, Elon),
   % 23s = jeff counter bids ItemId1 too late
   timer:sleep(13000), 
   {error, item_already_sold} = 
-    auction:bid(AuctionId, ItemId1, StartingBid1 + 2, Bezos),
+    auction:bid(AuctionPid, AuctionId, ItemId1, StartingBid1 + 2, Bezos),
   % 31s = jeff tries to bid for ItemId2 but timer doesn't reset on failed
   % bids so misses opportunity here as well
   timer:sleep(8000),
   {error, auction_ended} = 
-    auction:bid(AuctionId, ItemId2, StartingBid2, Bezos).
+    auction:bid(AuctionPid, AuctionId, ItemId2, StartingBid2, Bezos).
   
-%%% multiple_bidder integration tests with pubsub -----------------------------
-pub1(Config) ->
-  AuctionId = ?config(auction, Config), 
-  timer:sleep(1000),
-  % 1 s
-  {ok, Pid} = auction:start_link(AuctionId),
-  % stop the process ending when pub1 ends
-  unlink(Pid),
-  timer:sleep(20000).
-
-sub1(Config) ->
-  AuctionId = ?config(auction, Config),
-  [{ItemId1, StartingBid1, Description1}, 
-   {ItemId2, StartingBid2, Description2}] = 
-    ?config(itemids_info, Config),
-  [Sub1, _] = ?config(subscribers, Config),
-  % 0 s
-  {ok, _} = auction:subscribe(AuctionId),
-  % 1 s
-  receive
-    Msg1 ->
-      ct:print("sub1 ~p", [Msg1]),
-      {auction_event, auction_started} = Msg1
-  end,
-  receive
-    Msg2 ->
-      ct:print("sub1 ~p", [Msg2]),
-      {auction_event, {new_item, ItemId1, Description1, StartingBid1}} = Msg2
-  end,  
-  % bid < starting bid
-  Sub1ItemId1Bid1 = StartingBid1 - 1,
-  {ok, {not_leading, StartingBid1}} = 
-    auction:bid(AuctionId, ItemId1, Sub1ItemId1Bid1, Sub1),
-  Sub1ItemId1Bid2 = StartingBid1,
-  {ok, leading} = 
-    auction:bid(AuctionId, ItemId1, Sub1ItemId1Bid2, Sub1),
-  % do not receive any message re: sub1 failed initial bid
-  receive
-    Msg3 ->
-      ct:print("sub1 ~p", [Msg3]),
-      {auction_event, {new_bid, ItemId1, Sub1ItemId1Bid2}} = Msg3
-  end,    
-  Sub2ItemId1Bid1 = Sub1ItemId1Bid2 + 1,
-  receive
-    Msg4 ->
-      ct:print("sub1 ~p", [Msg4]),
-      {auction_event, {new_bid, ItemId1, Sub2ItemId1Bid1}} = Msg4
-  end,  
-  % 2 s
-  receive
-    Msg5 ->
-      ct:print("sub1 ~p", [Msg5]),
-      {auction_event, {item_sold, ItemId1, Sub2ItemId1Bid1}} = Msg5
-  end,
-  receive
-    Msg6 ->
-      ct:print("sub1 ~p", [Msg6]),
-      {auction_event, {new_item, ItemId2, Description2, StartingBid2}} = Msg6
-  end,  
-  % 12 s
-  timer:sleep(5000),
-  % 17 s 
-  Sub1ItemId2Bid1 = StartingBid2 + 2,
-  {ok, leading} = 
-    auction:bid(AuctionId, ItemId2, Sub1ItemId2Bid1, Sub1),
-  receive
-    Msg7 ->
-      ct:print("sub1 ~p", [Msg7]),
-      {auction_event, {new_bid, ItemId2, Sub1ItemId2Bid1}} = Msg7
-  end, 
-  % 22 s
-  receive
-    Msg8 ->
-      ct:print("sub1 ~p", [Msg8]),
-      {auction_event, {item_sold, ItemId2, Sub1ItemId2Bid1}} = Msg8
-  end,
-  receive
-    Msg9 ->
-      ct:print("sub1 ~p", [Msg9]),
-      {auction_event, auction_closed} = Msg9
-  end.
-
-sub2(Config) ->
-  AuctionId = ?config(auction, Config),
-  [{ItemId1, StartingBid1, Description1}, 
-   {ItemId2, StartingBid2, Description2}] = 
-    ?config(itemids_info, Config),
-  [_, Sub2] = ?config(subscribers, Config),
-  % 0 s
-  {ok, _} = auction:subscribe(AuctionId),
-  % 1 s 
-  receive
-    Msg1 ->
-      ct:print("sub2 ~p", [Msg1]),
-      {auction_event, auction_started} = Msg1
-  end,
-  receive
-    Msg2 ->
-      ct:print("sub2 ~p", [Msg2]),
-      {auction_event, {new_item, ItemId1, Description1, StartingBid1}} = Msg2
-  end, 
-  Sub1ItemId1Bid2 = StartingBid1,
-  % do not receive any message re: sub1 failed initial bid
-  receive
-    Msg3 ->
-      ct:print("sub2 ~p", [Msg3]),
-      {auction_event, {new_bid, ItemId1, Sub1ItemId1Bid2}} = Msg3
-  end,
-  timer:sleep(1000),
-  % 2 s     
-  Sub2ItemId1Bid1 = Sub1ItemId1Bid2 + 1,
-  {ok, leading} = 
-    auction:bid(AuctionId, ItemId1, Sub2ItemId1Bid1, Sub2),
-  receive
-    Msg4 ->
-      ct:print("sub2 ~p", [Msg4]),
-      {auction_event, {new_bid, ItemId1, Sub2ItemId1Bid1}} = Msg4
-  end,  
-  receive
-    Msg5 ->
-      ct:print("sub2 ~p", [Msg5]),
-      {auction_event, {item_sold, ItemId1, Sub2ItemId1Bid1}} = Msg5
-  end,    
-  receive
-    Msg6 ->
-      ct:print("sub2 ~p", [Msg6]),
-      {auction_event, {new_item, ItemId2, Description2, StartingBid2}} = Msg6
-  end,  
-  % 17 s 
-  Sub1ItemId2Bid1 = StartingBid2 + 2,
-  receive
-    Msg7 ->
-      ct:print("sub2 ~p", [Msg7]),
-      {auction_event, {new_bid, ItemId2, Sub1ItemId2Bid1}} = Msg7
-  end, 
-  % 22 s
-  receive
-    Msg8 ->
-      ct:print("sub2 ~p", [Msg8]),
-      {auction_event, {item_sold, ItemId2, Sub1ItemId2Bid1}} = Msg8
-  end,
-  receive
-    Msg9 ->
-      ct:print("sub2 ~p", [Msg9]),
-      {auction_event, auction_closed} = Msg9
-  end.
