@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------------
 %% File: auction_sup.erl
 %% @author Nicholas Drake
-%% @doc auction top level supervisor.
+%% @doc Auction dynamic supervisor.
 %% @end
 %%%----------------------------------------------------------------------------
 
@@ -17,26 +17,9 @@
 
 -define(SERVER, ?MODULE).
 
+%%% API -----------------------------------------------------------------------
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
-
-%% sup_flags() = #{strategy => strategy(),         % optional
-%%                 intensity => non_neg_integer(), % optional
-%%                 period => pos_integer()}        % optional
-%% child_spec() = #{id => child_id(),       % mandatory
-%%                  start => mfargs(),      % mandatory
-%%                  restart => restart(),   % optional
-%%                  shutdown => shutdown(), % optional
-%%                  type => worker(),       % optional
-%%                  modules => modules()}   % optional
-init([]) ->
-    SupFlags = #{strategy => simple_one_for_one,
-                 intensity => 5, % max number of restarts / period
-                 period => 60}, % period is 60
-    ChildSpecs = [{auction_child,
-                   {auction, start_link, []},
-                   transient, 1000, worker, [auction]}],
-    {ok, {SupFlags, ChildSpecs}}.
 
 start_auction(AuctionId) ->
   supervisor:start_child(?MODULE, [AuctionId]).
@@ -44,4 +27,12 @@ start_auction(AuctionId) ->
 stop_auction(AuctionPid) ->
   supervisor:terminate_child(?MODULE, AuctionPid).
 
-%% internal functions
+%%% Internal functions --------------------------------------------------------
+init([]) ->
+  SupFlags = #{strategy => simple_one_for_one,
+               intensity => 5, % max number of restarts / period
+               period => 60}, % period is 60
+  ChildSpecs = [{auction_child,
+                 {auction, start_link, []},
+                 transient, 1000, worker, [auction]}],
+  {ok, {SupFlags, ChildSpecs}}.
