@@ -6,6 +6,7 @@
 %%%----------------------------------------------------------------------------
 
 -module(auction_data).
+
 -behaviour(application).
 
 -export([start/2, stop/1]).
@@ -42,13 +43,13 @@
 
 %%% Setup ---------------------------------------------------------------------
 start(normal, []) ->
-  mnesia:wait_for_tables([auction_ids, 
-                          auction_data], 5000).
+  ok = mnesia:wait_for_tables([auction_ids, 
+                               auction_data], 10000).
 
 stop(_) -> ok.  
 
 install(Nodes) ->
-  ok = mnesia:create_schema(Nodes),
+  mnesia:create_schema(Nodes), % could be ok or error already_exists
   rpc:multicall(Nodes, application, start, [mnesia]),
   mnesia:create_table(auction_ids,
                       [{type, set},

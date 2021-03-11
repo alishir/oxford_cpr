@@ -1,16 +1,16 @@
 %%%-------------------------------------------------------------------
-%% @doc auction_house public API
+%% @doc bidder_client public API
 %% @end
 %%%-------------------------------------------------------------------
 
--module(auction_house_app).
+-module(bidder_client_app).
 
 -behaviour(application).
 
 -export([start/2, stop/1]).
 
 start(_StartType, _StartArgs) ->
-    auction_house_sup:start_link().
+    bidder_client_sup:start_link().
 
 stop(_State) ->
     ok.

@@ -1,9 +1,9 @@
 %%%-------------------------------------------------------------------
-%% @doc auction_house top level supervisor.
+%% @doc bidder_client top level supervisor.
 %% @end
 %%%-------------------------------------------------------------------
 
--module(auction_house_sup).
+-module(bidder_client_sup).
 
 -behaviour(supervisor).
 
