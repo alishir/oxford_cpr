@@ -6,6 +6,7 @@
 %%%----------------------------------------------------------------------------
 
 -module(auction_data).
+
 -behaviour(application).
 
 -export([start/2, stop/1]).

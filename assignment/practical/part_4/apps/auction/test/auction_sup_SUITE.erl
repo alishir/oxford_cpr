@@ -54,7 +54,7 @@ init_per_testcase(test_start_auction, Config) ->
   StartingBid2 = 1,
   AuctionItems2 = 
     [{"book", "fiction", StartingBid2}, {"hat", "blue cap", StartingBid1}],
-  {ok, [{_, "hat"}, {_, "book"}]} = 
+  {ok, [{_, "hat"}, {ItemId1, "book"}]} = 
     auction_data:add_items(AuctionId2, AuctionItems2),
   % added items
   {ok, AuctionId3} = auction_data:create_auction(),
@@ -63,11 +63,12 @@ init_per_testcase(test_start_auction, Config) ->
   StartingBid4 = 2,
   AuctionItems3 = 
     [{"cup", "for coffee", StartingBid3}, {"computer", "apple", StartingBid4}],
-  {ok, [{_, "computer"}, {_, "cup"}]} = 
+  {ok, [{_, "computer"}, {ItemId3, "cup"}]} = 
     auction_data:add_items(AuctionId3, AuctionItems3),
   [{supervisor, SupervisorPid} | 
     [{auction, [AuctionId1, AuctionId2, AuctionId3]} | 
-      Config]];
+      [{item_ids, [ItemId1, ItemId3]} | 
+        Config]]];
 init_per_testcase(test_stop_auction, Config) ->
   {ok, _Pid} = pubsub:start_link(),
   {ok, SupervisorPid} = auction_sup:start_link(),
@@ -109,6 +110,7 @@ test_start_link(_Config) ->
 test_start_auction(Config) ->
   [AuctionId1, AuctionId2, AuctionId3] = ?config(auction, Config),
   SupervisorPid = ?config(supervisor, Config),
+  [ItemId1, ItemId3] = ?config(item_ids, Config),
   InvalidAuctionId = make_ref(),
   % invalid auction id
   {error, unknown_auction} = auction_sup:start_auction(InvalidAuctionId),
@@ -119,7 +121,10 @@ test_start_auction(Config) ->
   {ok, AuctionPid2} = auction_sup:start_auction(AuctionId3),
   [{undefined, AuctionPid1, worker, [auction]}, 
    {undefined, AuctionPid2, worker, [auction]}] =
-    supervisor:which_children(SupervisorPid).
+    supervisor:which_children(SupervisorPid),
+  Bidder = {"elon musk", make_ref()},
+  {ok, leading} = auction:bid(AuctionPid1, AuctionId2, ItemId1, 10, Bidder),
+  {ok, leading} = auction:bid(AuctionPid2, AuctionId3, ItemId3, 10, Bidder).
 
 test_stop_auction(Config) ->
   AuctionId = ?config(auction, Config),
