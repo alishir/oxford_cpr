@@ -60,7 +60,9 @@ init_per_suite(Config) ->
   Config.
 
 end_per_suite(_Config) ->
+  application:stop(auction_data),
   application:stop(mnesia),
+  timer:sleep(10000), % wait for mnesia to stop
   ok.
 
 %%% group setup & tear down ---------------------------------------------------

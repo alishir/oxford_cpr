@@ -21,9 +21,7 @@ start_link() ->
 
 stop() ->  
   process_flag(trap_exit, true),
-  application:stop(auction_data),
-  application:stop(mnesia),
-  pubsub_sup:stop().  
+  exit(whereis(?MODULE), shutdown).
 
 %%% Internal functions --------------------------------------------------------
 init([]) ->

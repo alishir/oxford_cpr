@@ -20,10 +20,10 @@
          test_stop/1,
          test_get_auctions/1]).
 
-all() -> [].
-  % [test_start_link,
-  %  test_stop,
-  %  test_get_auctions].
+all() -> 
+  [test_start_link,
+   test_stop,
+   test_get_auctions].
 
 %%% suite setup & tear down ---------------------------------------------------
 init_per_suite(Config) ->
