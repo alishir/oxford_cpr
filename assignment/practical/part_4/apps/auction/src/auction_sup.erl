@@ -19,7 +19,7 @@
 
 %%% API -----------------------------------------------------------------------
 start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+  supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
 start_auction(AuctionId) ->
   supervisor:start_child(?MODULE, [AuctionId]).
@@ -30,7 +30,7 @@ stop_auction(AuctionPid) ->
 %%% Internal functions --------------------------------------------------------
 init([]) ->
   SupFlags = #{strategy => simple_one_for_one,
-               intensity => 5, % max number of restarts / period
+               intensity => 3, % max number of restarts / period
                period => 60}, % period is 60
   ChildSpecs = [{auction_child,
                  {auction, start_link, []},

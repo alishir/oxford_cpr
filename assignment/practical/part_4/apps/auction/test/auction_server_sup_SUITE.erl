@@ -28,7 +28,7 @@ init_per_testcase(test_stop, Config) ->
   Config.
 
 end_per_testcase(test_start_link, _Config) ->
-  ok = auction_server_sup:stop();
+  true = auction_server_sup:stop();
 end_per_testcase(test_stop, _Config) ->
   ok.
 
@@ -41,4 +41,4 @@ test_start_link(_Config) ->
   {ok, _MonitorRef} = auction:subscribe(AuctionId).
 
 test_stop(_Config) ->
-  ok = auction_server_sup:stop().
+  true = auction_server_sup:stop().

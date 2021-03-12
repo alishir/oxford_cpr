@@ -9,7 +9,7 @@
 
 -behaviour(supervisor).
 
--export([start_link/0]).
+-export([start_link/0, stop/0]).
 
 -export([init/1]).
 
@@ -17,13 +17,18 @@
 
 %%% API -----------------------------------------------------------------------
 start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+  supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+
+stop() ->
+  process_flag(trap_exit, true),
+  exit(whereis(?MODULE), shutdown).
 
 %%% Internal functions --------------------------------------------------------
 init([]) ->
   SupFlags = #{strategy => one_for_one,
                intensity => 3, % max number of restarts / period
-               period => 3600}, % period is 60 mins
+               period => 3600, % period is 60 mins
+               shutdown => 1000}, 
   ChildSpecs = [{pubsub,
                  {pubsub, start_link, []},
                  permanent, 1000, worker, [pubsub]}],

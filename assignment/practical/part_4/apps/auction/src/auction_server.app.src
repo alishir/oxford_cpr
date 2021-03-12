@@ -1,8 +1,8 @@
-{application, auction,
+{application, auction_server,
  [{description, "An OTP application"},
   {vsn, "0.1.0"},
   {registered, []},
-  {mod, {auction_app, []}},
+  {mod, {auction_server, []}},
   {applications,
    [kernel,
     stdlib
