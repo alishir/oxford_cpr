@@ -61,8 +61,9 @@ init_per_suite(Config) ->
 
 end_per_suite(_Config) ->
   application:stop(auction_data),
+  % we do not stop mnesia as this can take a long time and in waiting cause
+  % other tests to fail
   application:stop(mnesia),
-  timer:sleep(10000), % wait for mnesia to stop
   ok.
 
 %%% group setup & tear down ---------------------------------------------------

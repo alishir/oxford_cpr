@@ -50,7 +50,9 @@ init_per_suite(Config) ->
   Config.
 
 end_per_suite(_Config) ->
-  application:stop(mnesia),
+  % we do not stop mnesia as this can take a long time and in waiting cause
+  % other tests to fail
+  % application:stop(mnesia),
   ok.
 
 %%% testcase setup ------------------------------------------------------------
