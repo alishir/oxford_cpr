@@ -57,8 +57,7 @@ handle_call(_Call, _From, State) ->
   {noreply, State}.
 
 handle_cast({get_auctions}, State) ->
-  ItemsList = auction_data:get_auctions(),
-  ct:print("List of auctions: ~p~n", [ItemsList]),
+  {ok, ItemsList} = auction_data:get_auctions(),
   io:format("List of auctions: ~p~n", [ItemsList]),
   {noreply, State};
 handle_cast(_Cast, State) ->

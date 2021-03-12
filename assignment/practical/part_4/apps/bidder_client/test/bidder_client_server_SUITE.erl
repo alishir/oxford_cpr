@@ -82,8 +82,25 @@ test_stop(Config) ->
 
 test_get_auctions(Config) ->
   [BidderName1, _] = ?config(bidder_names, Config),
+  ok = ct:capture_start(),
+
   ok = bidder_client_server:get_auctions(BidderName1),
+  timer:sleep(100),
+  ExpectedString1 = ["List of auctions: []\n"],
+  ExpectedString1 = ct:capture_get(),
   {ok, AuctionId1} = auction_data:create_auction(),
-  % [AuctionId1] = bidder_client_server:get_auctions(BidderName1),
-  % {ok, AuctionId2} = auction_data:create_auction(),
-  ok.
+
+  ok = bidder_client_server:get_auctions(BidderName1),
+  timer:sleep(100),
+  ExpectedString2 = lists:flatten("List of auctions: [" ++ 
+    io_lib:format("~p", [AuctionId1]) ++ "]\n"),
+  [ExpectedString2] = ct:capture_get(),
+  {ok, AuctionId2} = auction_data:create_auction(),
+
+  ok = bidder_client_server:get_auctions(BidderName1),
+  timer:sleep(100),
+  ExpectedString3 = lists:flatten("List of auctions: [" ++ 
+    io_lib:format("~p,~n                   ~p", [AuctionId1, AuctionId2]) ++ 
+    "]\n"),
+  [ExpectedString3] = ct:capture_get(),
+  ok = ct:capture_stop().
