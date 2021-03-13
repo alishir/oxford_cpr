@@ -176,7 +176,7 @@ test_auction_messages(Config) ->
   ok = pubsub:create_channel(AuctionId1),
   AuctionItems = 
     [{"book", "fiction", 1}, {"hat", "blue cap", 0}],
-  {ok, [{_, "hat"}, {_, "book"}]} = 
+  {ok, [{_, "hat"}, {ItemId1, "book"}]} = 
     auction_data:add_items(AuctionId1, AuctionItems),
   {ok, _} = bidder_client_server:subscribe(BidderName1, AuctionId1),
   
@@ -190,6 +190,31 @@ test_auction_messages(Config) ->
   timer:sleep(100),
   SortedExpectedStrings = lists:sort([ExpectedString1, ExpectedString2]),
   SortedExpectedStrings = lists:sort(ct:capture_get()),
+
+  timer:sleep(2000),
+  {ok, leading} = 
+    bidder_client_server:bid(BidderName1, AuctionId1, ItemId1, 5),
+  ExpectedString3 = lists:flatten(
+    io_lib:format("AuctionId ~p: Submitted bid ~p\n", [AuctionId1, 5])),
+  [ExpectedString3] = ct:capture_get(),  
+
+  ExpectedString4 = lists:flatten(
+    io_lib:format("AuctionId ~p: Bid ~p\n", [AuctionId1, 5])),
+  [ExpectedString4] = ct:capture_get(),  
+
+  timer:sleep(11000),
+  ExpectedString5 = lists:flatten(
+    io_lib:format("AuctionId ~p: Item sold. Winning bid ~p\n", 
+    [AuctionId1, 5])),
+  ExpectedString6 = lists:flatten(
+      io_lib:format("AuctionId ~p: New item blue cap with starting bid ~p\n", 
+      [AuctionId1, 0])),
+  [ExpectedString5, ExpectedString6] = ct:capture_get(),  
+  
+  timer:sleep(11000),
+  ExpectedString7 = lists:flatten(
+    io_lib:format("AuctionId ~p: Closed\n", [AuctionId1])),
+  [ExpectedString7] = ct:capture_get(),  
 
   ok = auction_data:remove_auction(AuctionId1),
   ok = ct:capture_stop().

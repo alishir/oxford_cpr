@@ -92,8 +92,8 @@ handle_call({bid, AuctionId, ItemId, Bid}, _From, State) ->
       Result = {error, invalid_auction};
     AuctionPid ->
       Bidder = maps:get(bidder, State),
-      Result = auction:bid(AuctionPid, AuctionId, ItemId, Bid, Bidder),
-      io:format("AuctionId ~p: Submitted bid ~p~n", [AuctionId, Bid])
+      io:format("AuctionId ~p: Submitted bid ~p~n", [AuctionId, Bid]),
+      Result = auction:bid(AuctionPid, AuctionId, ItemId, Bid, Bidder)
   end,
   {reply, Result, State};
 handle_call(_Call, _From, State) ->
@@ -111,10 +111,20 @@ handle_info({{AuctionId, auction_event},
   io:format("AuctionId ~p: New item ~s with starting bid ~p~n", 
     [AuctionId, Description, Bid]),
   {noreply, State};
-% handle_info({auction_event, {new_bid, ItemId, Bid}}, State) ->
-%   io:fora
+handle_info({{AuctionId, auction_event}, {new_bid, ItemId, Bid}}, State) ->
+  io:format("AuctionId ~p: Bid ~p~n", [AuctionId, Bid]),
+  {noreply, State};
+handle_info({{AuctionId, auction_event}, 
+  {item_sold, ItemId, WinningBid}}, State) ->
+  io:format("AuctionId ~p: Item sold. Winning bid ~p~n", 
+    [AuctionId, WinningBid]),
+  {noreply, State};
+handle_info({{AuctionId, auction_event}, auction_closed}, State) ->
+  io:format("AuctionId ~p: Closed~n", [AuctionId]),
+  {noreply, State};
 handle_info(Info, State) ->
-  ct:print("~p", [Info]),
+  % shouldn't get here
+  ct:print("Error: received  ~p", [Info]),
   {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) ->
