@@ -21,6 +21,7 @@
          test_get_auctions/1,
          test_subscribe/1,
          test_unsubscribe/1,
+         test_bid/1,
          test_auction_messages/1]).
 
 all() -> 
@@ -29,6 +30,7 @@ all() ->
    test_get_auctions,
    test_subscribe,
    test_unsubscribe,
+   test_bid,
    test_auction_messages].
 
 %%% suite setup & tear down ---------------------------------------------------
@@ -130,7 +132,8 @@ test_subscribe(Config) ->
     io_lib:format("AuctionId ~p: Subscribed\n", [AuctionId1])),
   [ExpectedString] = ct:capture_get(),  
 
-  ok = auction_data:remove_auction(AuctionId1).
+  ok = auction_data:remove_auction(AuctionId1),
+  ok = ct:capture_stop().
 
 test_unsubscribe(Config) ->
   [BidderName1, _] = ?config(bidder_names, Config),
@@ -144,7 +147,28 @@ test_unsubscribe(Config) ->
     io_lib:format("AuctionId ~p: Unsubscribed\n", [AuctionId1])),
   [ExpectedString] = ct:capture_get(),  
 
-  ok = auction_data:remove_auction(AuctionId1).
+  ok = auction_data:remove_auction(AuctionId1),
+  ok = ct:capture_stop().
+
+test_bid(Config) ->
+  [BidderName1, _] = ?config(bidder_names, Config),
+  {ok, AuctionId1} = auction_data:create_auction(),
+  ok = pubsub:create_channel(AuctionId1),
+  AuctionItems = 
+    [{"book", "fiction", 1}, {"hat", "blue cap", 0}],
+  {ok, [{_, "hat"}, {ItemId1, "book"}]} = 
+    auction_data:add_items(AuctionId1, AuctionItems),
+  {ok, _} = bidder_client_server:subscribe(BidderName1, AuctionId1),
+  {ok, _AuctionPid} = auction:start_link(AuctionId1),
+  timer:sleep(100),
+  
+  ok = ct:capture_start(),
+  {ok, leading} = 
+    bidder_client_server:bid(BidderName1, AuctionId1, ItemId1, 5),
+  ExpectedString1 = lists:flatten(
+    io_lib:format("AuctionId ~p: Submitted bid ~p\n", [AuctionId1, 5])),
+  [ExpectedString1] = ct:capture_get(),  
+  ok = ct:capture_stop().
 
 test_auction_messages(Config) ->
   [BidderName1, _] = ?config(bidder_names, Config),
@@ -167,4 +191,6 @@ test_auction_messages(Config) ->
   SortedExpectedStrings = lists:sort([ExpectedString1, ExpectedString2]),
   SortedExpectedStrings = lists:sort(ct:capture_get()),
 
-  ok = auction_data:remove_auction(AuctionId1).
+  ok = auction_data:remove_auction(AuctionId1),
+  ok = ct:capture_stop().
+

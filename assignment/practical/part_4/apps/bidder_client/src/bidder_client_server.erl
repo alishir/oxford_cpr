@@ -9,7 +9,8 @@
 
 -behaviour(gen_server).
 
--export([start_link/1, stop/1, get_auctions/1, subscribe/2, unsubscribe/2]). 
+-export([start_link/1, stop/1, get_auctions/1, subscribe/2, unsubscribe/2, 
+         bid/4]). 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, code_change/3, 
          terminate/2]).
 
@@ -84,7 +85,17 @@ handle_call({unsubscribe, AuctionId}, _From, State) ->
   end,
   {reply, Result, State};
 handle_call({bid, AuctionId, ItemId, Bid}, _From, State) ->
-  {noreply, State};
+  AuctionIdPidMap = maps:get(auction_id_to_pid_map, State),
+  case maps:get(AuctionId, AuctionIdPidMap, undefined) of
+    undefined ->
+      io:format("AuctionId ~p: Unknown auction~n", [AuctionId]),
+      Result = {error, invalid_auction};
+    AuctionPid ->
+      Bidder = maps:get(bidder, State),
+      Result = auction:bid(AuctionPid, AuctionId, ItemId, Bid, Bidder),
+      io:format("AuctionId ~p: Submitted bid ~p~n", [AuctionId, Bid])
+  end,
+  {reply, Result, State};
 handle_call(_Call, _From, State) ->
   {noreply, State}.
 
