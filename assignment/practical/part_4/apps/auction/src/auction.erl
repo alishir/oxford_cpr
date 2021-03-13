@@ -41,7 +41,7 @@ start_link(AuctionId) ->
                                         [AuctionId, HeadItemId, TailItemIds], 
                                         []),
       pubsub:publish(AuctionId, 
-        {auction_event, {auction_started, AuctionId, Pid}}),
+        {{AuctionId, auction_event}, {auction_started, Pid}}),
       {ok, Pid};
     {error, unknown_auction} ->
       {error, unknown_auction}
@@ -76,7 +76,8 @@ init([AuctionId, HeadItemId, TailItemIds]) ->
     auction_data:get_item(AuctionId, HeadItemId),
   pubsub:publish(
     AuctionId, 
-    {auction_event, {new_item, HeadItemId, Description, StartingBid}}),
+    {{AuctionId, auction_event},
+     {new_item, HeadItemId, Description, StartingBid}}),
   State = auction_item,
   Data = #{auctionid => AuctionId, 
            current_itemid => HeadItemId,
@@ -134,7 +135,7 @@ auction_item(state_timeout,
   {NewCurrentItemId, NewRemainingItemIds} = get_next_itemid(RemainingItemIds),
   if 
     NewCurrentItemId =:= undefined ->
-      pubsub:publish(AuctionId, {auction_event, auction_closed}),
+      pubsub:publish(AuctionId, {{AuctionId, auction_event}, auction_closed}),
       {next_state,
        auction_ended,
        Data};
@@ -144,7 +145,7 @@ auction_item(state_timeout,
         auction_data:get_item(AuctionId, NewCurrentItemId),
       pubsub:publish(
         AuctionId, 
-        {auction_event, 
+        {{AuctionId, auction_event}, 
          {new_item, NewCurrentItemId, NewDescription, NewStartingBid}}),
       {next_state,
        auction_item, 
@@ -214,7 +215,7 @@ check_leading_bid(Data, From, Bid, Bidder, StartingBid, LeadingBid) ->
           AuctionId = maps:get(auctionid, Data),
           ItemId = maps:get(current_itemid, Data),
           pubsub:publish(AuctionId, 
-                         {auction_event, {new_bid, ItemId, Bid}}),
+                         {{AuctionId, auction_event}, {new_bid, ItemId, Bid}}),
           {next_state,
            auction_item, 
            Data#{leading_bid := Bid,
@@ -232,7 +233,7 @@ check_leading_bid(Data, From, Bid, Bidder, StartingBid, LeadingBid) ->
           AuctionId = maps:get(auctionid, Data),
           ItemId = maps:get(current_itemid, Data),
           pubsub:publish(AuctionId, 
-                         {auction_event, {new_bid, ItemId, Bid}}),
+                         {{AuctionId, auction_event}, {new_bid, ItemId, Bid}}),
           {next_state,
            auction_item, 
            Data#{leading_bid := Bid,
@@ -248,7 +249,7 @@ add_winning_bidder(AuctionId, CurrentItemId, LeadingBid, LeadingBidder) ->
     LeadingBid =/= undefined -> % we have a winner!
       pubsub:publish(
         AuctionId, 
-        {auction_event, {item_sold, CurrentItemId, LeadingBid}}),
+        {{AuctionId, auction_event}, {item_sold, CurrentItemId, LeadingBid}}),
       auction_data:add_winning_bidder(
         AuctionId, CurrentItemId, LeadingBid, LeadingBidder);
     true -> 

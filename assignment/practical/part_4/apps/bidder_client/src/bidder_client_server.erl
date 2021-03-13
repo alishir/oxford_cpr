@@ -62,25 +62,25 @@ init([Bidder]) ->
 handle_call(stop, _From, State) ->
   {stop, normal, ok, State};
 handle_call({get_auctions}, _From, State) ->
-  {ok, ItemsList} = auction_data:get_auctions(),
-  io:format("List of auctions: ~p~n", [ItemsList]),
-  {reply, ItemsList, State};
+  {ok, AuctionsList} = auction_data:get_auctions(),
+  io:format("List of auctions: ~p~n", [AuctionsList]),
+  {reply, AuctionsList, State};
 handle_call({subscribe, AuctionId}, _From, State) ->
   Result = auction:subscribe(AuctionId),
   case Result of
     {ok, MonitorPid} ->
-      io:format("Subscribed to auction~n");
+      io:format("AuctionId ~p: Subscribed~n", [AuctionId]);
     {error, unknown_auction} ->
-      io:format("Unknown auction~n")
+      io:format("AuctionId ~p: Unknown auction~n", [AuctionId])
   end,
   {reply, Result, State};
 handle_call({unsubscribe, AuctionId}, _From, State) ->
   Result = pubsub:unsubscribe(AuctionId),
   case Result of
     ok ->
-      io:format("Unsubscribed to auction~n");
+      io:format("AuctionId ~p: Unsubscribed~n", [AuctionId]);
     {error, unknown_auction} ->
-      io:format("Unknown auction~n")
+      io:format("AuctionId ~p: Unknown auction~n", [AuctionId])
   end,
   {reply, Result, State};
 handle_call({bid, AuctionId, ItemId, Bid}, _From, State) ->
@@ -92,9 +92,16 @@ handle_cast(_Cast, State) ->
   {noreply, State}.
 
 handle_info(
-  {auction_event, {auction_started, AuctionId, AuctionPid}}, State) ->
-  io:format("AuctionId ~p started~n", [AuctionId]),
+  {{AuctionId, auction_event}, {auction_started, AuctionPid}}, State) ->
+  io:format("AuctionId ~p: Started~n", [AuctionId]),
   {noreply, State#{auction_id_to_pid_map := #{AuctionId => AuctionPid}}};
+handle_info({{AuctionId, auction_event}, 
+  {new_item, ItemId, Description, Bid}}, State) ->
+  io:format("AuctionId ~p: New item ~s with starting bid ~p~n", 
+    [AuctionId, Description, Bid]),
+  {noreply, State};
+% handle_info({auction_event, {new_bid, ItemId, Bid}}, State) ->
+%   io:fora
 handle_info(Info, State) ->
   ct:print("~p", [Info]),
   {noreply, State}.

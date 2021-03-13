@@ -21,7 +21,7 @@
          test_get_auctions/1,
          test_subscribe/1,
          test_unsubscribe/1,
-         test_auction_started/1]).
+         test_auction_messages/1]).
 
 all() -> 
   [test_start_link,
@@ -29,7 +29,7 @@ all() ->
    test_get_auctions,
    test_subscribe,
    test_unsubscribe,
-   test_auction_started].
+   test_auction_messages].
 
 %%% suite setup & tear down ---------------------------------------------------
 init_per_suite(Config) ->
@@ -112,7 +112,8 @@ test_get_auctions(Config) ->
     io_lib:format("~p,~n                   ~p", [AuctionId2, AuctionId1]) ++ 
     "]\n"),
   Captured = ct:capture_get(),
-  true = (([ExpectedString3] =:= Captured) or ([ExpectedString4] =:= Captured)),
+  true = (([ExpectedString3] =:= Captured) or 
+          ([ExpectedString4] =:= Captured)),
 
   ok = auction_data:remove_auction(AuctionId1),
   ok = auction_data:remove_auction(AuctionId2),
@@ -125,7 +126,9 @@ test_subscribe(Config) ->
   ok = pubsub:create_channel(AuctionId1),
 
   {ok, _} = bidder_client_server:subscribe(BidderName1, AuctionId1),
-  ["Subscribed to auction\n"] = ct:capture_get(),  
+  ExpectedString = lists:flatten(
+    io_lib:format("AuctionId ~p: Subscribed\n", [AuctionId1])),
+  [ExpectedString] = ct:capture_get(),  
 
   ok = auction_data:remove_auction(AuctionId1).
 
@@ -133,15 +136,17 @@ test_unsubscribe(Config) ->
   [BidderName1, _] = ?config(bidder_names, Config),
   {ok, AuctionId1} = auction_data:create_auction(),
   ok = pubsub:create_channel(AuctionId1),
-
   {ok, _} = bidder_client_server:subscribe(BidderName1, AuctionId1),
   ok = ct:capture_start(),
+
   ok = bidder_client_server:unsubscribe(BidderName1, AuctionId1),
-  ["Unsubscribed to auction\n"] = ct:capture_get(),  
+  ExpectedString = lists:flatten(
+    io_lib:format("AuctionId ~p: Unsubscribed\n", [AuctionId1])),
+  [ExpectedString] = ct:capture_get(),  
 
   ok = auction_data:remove_auction(AuctionId1).
 
-test_auction_started(Config) ->
+test_auction_messages(Config) ->
   [BidderName1, _] = ?config(bidder_names, Config),
   {ok, AuctionId1} = auction_data:create_auction(),
   ok = pubsub:create_channel(AuctionId1),
@@ -150,12 +155,16 @@ test_auction_started(Config) ->
   {ok, [{_, "hat"}, {_, "book"}]} = 
     auction_data:add_items(AuctionId1, AuctionItems),
   {ok, _} = bidder_client_server:subscribe(BidderName1, AuctionId1),
-  ok = ct:capture_start(),
   
+  ok = ct:capture_start(),
   {ok, _AuctionPid} = auction:start_link(AuctionId1),
-  ExpectedString = lists:flatten("AuctionId " ++ 
-  io_lib:format("~p", [AuctionId1]) ++ " started\n"),
+  ExpectedString1 = lists:flatten(
+    io_lib:format("AuctionId ~p: Started\n", [AuctionId1])),
+  ExpectedString2 = lists:flatten(
+  io_lib:format("AuctionId ~p: New item fiction with starting bid ~p\n", 
+    [AuctionId1, 1])),
   timer:sleep(100),
-  [ExpectedString] = ct:capture_get(),
+  SortedExpectedStrings = lists:sort([ExpectedString1, ExpectedString2]),
+  SortedExpectedStrings = lists:sort(ct:capture_get()),
 
   ok = auction_data:remove_auction(AuctionId1).
