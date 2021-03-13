@@ -123,8 +123,7 @@ test_start_auction(Config) ->
    {undefined, AuctionPid2, worker, [auction]}] =
     supervisor:which_children(SupervisorPid),
   Bidder = {"elon musk", make_ref()},
-  {ok, leading} = auction:bid(AuctionPid1, AuctionId2, ItemId1, 10, Bidder),
-  {ok, leading} = auction:bid(AuctionPid2, AuctionId3, ItemId3, 10, Bidder).
+  {ok, leading} = auction:bid(AuctionPid1, AuctionId2, ItemId1, 10, Bidder).
 
 test_stop_auction(Config) ->
   AuctionId = ?config(auction, Config),

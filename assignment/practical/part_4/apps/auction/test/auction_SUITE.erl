@@ -60,6 +60,7 @@ init_per_suite(Config) ->
   Config.
 
 end_per_suite(_Config) ->
+  application:stop(auction_data),
   application:stop(mnesia),
   ok.
 

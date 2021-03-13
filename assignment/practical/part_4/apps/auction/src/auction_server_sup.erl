@@ -19,10 +19,9 @@
 start_link() ->
   supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
-stop() ->
-  application:stop(mnesia),
-  pubsub:stop(),
-  ok.
+stop() ->  
+  process_flag(trap_exit, true),
+  exit(whereis(?MODULE), shutdown).
 
 %%% Internal functions --------------------------------------------------------
 init([]) ->

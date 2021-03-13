@@ -37,7 +37,7 @@ all() ->
    test_remove_auction,
    test_remove_item].
 
-% suite setup & tear down
+%%% suite setup & tear down ---------------------------------------------------
 init_per_suite(Config) ->
   Priv = ?config(priv_dir, Config),
   io:format("priv_directory ~s~n", [Priv]),
@@ -53,7 +53,7 @@ end_per_suite(_Config) ->
   application:stop(mnesia),
   ok.
 
-% testcase setup
+%%% testcase setup ------------------------------------------------------------
 init_per_testcase(test_create_auction, Config) ->
   {ok, AuctionId} = auction_data:create_auction(),
   [{auction, AuctionId} |
@@ -123,7 +123,7 @@ init_per_testcase(_, Config) ->
   {ok, AuctionId} = auction_data:create_auction(),
   [{auction, AuctionId} | Config].
 
-% testcase tear down
+%%% testcase tear down --------------------------------------------------------
 end_per_testcase(test_get_auctions, Config) ->
   [AuctionId1, AuctionId2] = ?config(auction, Config),
   ok = auction_data:remove_auction(AuctionId1),
@@ -142,7 +142,7 @@ end_per_testcase(_, Config) ->
   AuctionId = ?config(auction, Config),
   ok = auction_data:remove_auction(AuctionId).
 
-% tests
+%%% tests ---------------------------------------------------------------------
 test_create_auction(Config) ->
   {ok, _} = ?config(response, Config).
   

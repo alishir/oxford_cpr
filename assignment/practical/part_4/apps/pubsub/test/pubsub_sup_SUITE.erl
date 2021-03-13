@@ -18,7 +18,8 @@ all() ->
 
 %% supervisor test -----------------------------------------------------------
 test_start_link(_Config) ->
-  {ok, PubsubPid} = pubsub:start_link(),
+  {ok, PubsubPid} = pubsub_sup:start_link(),
   AuctionId = make_ref(),
   ok = pubsub:create_channel(AuctionId),
-  {error, {already_started, PubsubPid}} = pubsub:start_link().
+  {error, {already_started, PubsubPid}} = pubsub_sup:start_link(),
+  true = pubsub_sup:stop().
