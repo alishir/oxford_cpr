@@ -15,9 +15,6 @@
          terminate/2]).
 
 -type itemid() :: {node(), integer(), reference()}.
--type item_info() :: {nonempty_string(), nonempty_string(), non_neg_integer()}.
--type itemid_info() :: {itemid(), nonempty_string(), non_neg_integer()}.
--type bidderid() :: {nonempty_string(), reference()}.
 
 %%% Client API ----------------------------------------------------------------
 -spec start_link(nonempty_string()) -> {ok, pid()}.
@@ -69,7 +66,7 @@ handle_call({get_auctions}, _From, State) ->
 handle_call({subscribe, AuctionId}, _From, State) ->
   Result = auction:subscribe(AuctionId),
   case Result of
-    {ok, MonitorPid} ->
+    {ok, _MonitorPid} ->
       io:format("AuctionId ~p: Subscribed~n", [AuctionId]);
     {error, unknown_auction} ->
       io:format("AuctionId ~p: Unknown auction~n", [AuctionId])
@@ -107,15 +104,15 @@ handle_info(
   io:format("AuctionId ~p: Started~n", [AuctionId]),
   {noreply, State#{auction_id_to_pid_map := #{AuctionId => AuctionPid}}};
 handle_info({{AuctionId, auction_event}, 
-  {new_item, ItemId, Description, Bid}}, State) ->
+  {new_item, _ItemId, Description, Bid}}, State) ->
   io:format("AuctionId ~p: New item ~s with starting bid ~p~n", 
     [AuctionId, Description, Bid]),
   {noreply, State};
-handle_info({{AuctionId, auction_event}, {new_bid, ItemId, Bid}}, State) ->
+handle_info({{AuctionId, auction_event}, {new_bid, _ItemId, Bid}}, State) ->
   io:format("AuctionId ~p: Bid ~p~n", [AuctionId, Bid]),
   {noreply, State};
 handle_info({{AuctionId, auction_event}, 
-  {item_sold, ItemId, WinningBid}}, State) ->
+  {item_sold, _ItemId, WinningBid}}, State) ->
   io:format("AuctionId ~p: Item sold. Winning bid ~p~n", 
     [AuctionId, WinningBid]),
   {noreply, State};
