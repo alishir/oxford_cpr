@@ -150,8 +150,8 @@ test_auction_started(Config) ->
   {ok, [{_, "hat"}, {_, "book"}]} = 
     auction_data:add_items(AuctionId1, AuctionItems),
   {ok, _} = bidder_client_server:subscribe(BidderName1, AuctionId1),
-
   ok = ct:capture_start(),
+  
   {ok, _AuctionPid} = auction:start_link(AuctionId1),
   ExpectedString = lists:flatten("AuctionId " ++ 
   io_lib:format("~p", [AuctionId1]) ++ " started\n"),
