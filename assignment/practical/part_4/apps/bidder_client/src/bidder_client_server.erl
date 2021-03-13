@@ -45,13 +45,17 @@ subscribe(BidderName, AuctionId) ->
 unsubscribe(BidderName, AuctionId) ->
   gen_server:call({global, BidderName}, {unsubscribe, AuctionId}).
 
-% bid() ->
-%   ok.
-
+-spec bid(nonempty_string(), reference(), itemid(), non_neg_integer()) ->
+  {ok, leading | {not_leading, non_neg_integer()}} | 
+  {error, invalid_auction | invalid_item | auction_ended | item_already_sold}.
+bid(BidderName, AuctionId, ItemId, Bid) ->
+  gen_server:call({global, BidderName}, 
+                  {bid, AuctionId, ItemId, Bid}).
 
 %%% Gen StateM Callbacks ------------------------------------------------------
 init([Bidder]) ->
   State = #{bidder => Bidder,
+            auction_id_to_pid_map => #{},
             automated_bidding => #{}},
   {ok, State}.
 
@@ -65,29 +69,34 @@ handle_call({subscribe, AuctionId}, _From, State) ->
   Result = auction:subscribe(AuctionId),
   case Result of
     {ok, MonitorPid} ->
-      io:format("Subscribed to auction");
+      io:format("Subscribed to auction~n");
     {error, unknown_auction} ->
-      io:format("Unknown auction")
+      io:format("Unknown auction~n")
   end,
   {reply, Result, State};
 handle_call({unsubscribe, AuctionId}, _From, State) ->
   Result = pubsub:unsubscribe(AuctionId),
   case Result of
     ok ->
-      io:format("Unsubscribed to auction");
+      io:format("Unsubscribed to auction~n");
     {error, unknown_auction} ->
-      io:format("Unknown auction")
+      io:format("Unknown auction~n")
   end,
   {reply, Result, State};
+handle_call({bid, AuctionId, ItemId, Bid}, _From, State) ->
+  {noreply, State};
 handle_call(_Call, _From, State) ->
   {noreply, State}.
 
-handle_cast({auction_event, auction_started}, State) ->
-  {noreply, State};
 handle_cast(_Cast, State) ->
   {noreply, State}.
 
-handle_info(_Info, State) ->
+handle_info(
+  {auction_event, {auction_started, AuctionId, AuctionPid}}, State) ->
+  io:format("AuctionId ~p started~n", [AuctionId]),
+  {noreply, State#{auction_id_to_pid_map := #{AuctionId => AuctionPid}}};
+handle_info(Info, State) ->
+  ct:print("~p", [Info]),
   {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) ->

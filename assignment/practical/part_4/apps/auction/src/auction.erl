@@ -40,7 +40,8 @@ start_link(AuctionId) ->
       {ok, Pid} = gen_statem:start_link(?MODULE, 
                                         [AuctionId, HeadItemId, TailItemIds], 
                                         []),
-      pubsub:publish(AuctionId, {auction_event, {auction_started, Pid}}),
+      pubsub:publish(AuctionId, 
+        {auction_event, {auction_started, AuctionId, Pid}}),
       {ok, Pid};
     {error, unknown_auction} ->
       {error, unknown_auction}
