@@ -66,7 +66,27 @@ automated_bid(BidderName, AuctionId, ItemId, Bid, From) ->
     BidResponse = 
       gen_server:call({global, BidderName}, {bid, AuctionId, ItemId, Bid}),
     gen_server:reply(From, BidResponse)
-  end).                   
+  end).
+
+bid_automatically(State, AuctionId, ItemId, Bid) ->
+  AutomatedBiddingMap = maps:get(automated_bidding, State),
+  case maps:get(ItemId, AutomatedBiddingMap, undefined) of
+    undefined ->
+      {noreply, State}; % do nothing as no automated bid for this item
+    {_From, Bid, _MaxBid} -> % last bid is our bid (tho race conditions)
+      {noreply, State};
+    {From, _LastBid, MaxBid} ->
+      if 
+        Bid + 1 =< MaxBid ->
+          {BidderName, _} = maps:get(bidder, State),
+          automated_bid(BidderName, AuctionId, ItemId, Bid + 1, From),
+          UpdatedAutomatedBiddingMap = 
+            AutomatedBiddingMap#{ItemId := {From, Bid + 1, MaxBid}},
+          {noreply, State#{automated_bidding := UpdatedAutomatedBiddingMap}};
+        true ->
+          {noreply, State} % do nothing as too high
+      end
+  end.
 
 %%% Gen StateM Callbacks ------------------------------------------------------
 init([Bidder]) ->
@@ -103,7 +123,7 @@ handle_call({bid, AuctionId, ItemId, Bid}, _From, State) ->
   AuctionIdPidMap = maps:get(auction_id_to_pid_map, State),
   case maps:get(AuctionId, AuctionIdPidMap, undefined) of
     undefined ->
-      io:format("AuctionId ~p: Unknown auction~n", [AuctionId]),
+      io:format("AuctionId ~p: Auction not yet started~n", [AuctionId]),
       Result = {error, invalid_auction};
     AuctionPid ->
       Bidder = maps:get(bidder, State),
@@ -136,30 +156,11 @@ handle_info({{AuctionId, auction_event},
   io:format("AuctionId ~p: New item ~s with starting bid ~p~n", 
     [AuctionId, Description, Bid]),
   % need to check if there are any automated bids to be triggered
-  AutomatedBiddingMap = maps:get(automated_bidding, State),
-  case maps:get(ItemId, AutomatedBiddingMap, undefined) of
-    undefined ->
-      {noreply, State}; % do nothing as no automated bid for this item
-    {_From, Bid, _MaxBid} -> % last bid is our bid (tho race conditions)
-      {noreply, State};
-    {From, CurrentBid, MaxBid} ->
-      if 
-        CurrentBid + 1 =< MaxBid ->
-          {BidderName, _} = maps:get(bidder, State),
-          automated_bid(BidderName, AuctionId, ItemId, CurrentBid + 1, From),
-          UpdatedAutomatedBiddingMap = 
-            AutomatedBiddingMap#{ItemId := {From, CurrentBid + 1, MaxBid}},
-          {noreply, State#{automated_bidding := UpdatedAutomatedBiddingMap}};
-        true ->
-          {noreply, State} % do nothing as too high
-      end
-  end;
-  % AutomatedBiddingMap = maps:get(automated_bidding, State),
-  % bid_result = gen_server:call(self(), {bid, AuctionId, ItemId, StartBid}),
-  % % gen_server:reply(From, bid_result),
-handle_info({{AuctionId, auction_event}, {new_bid, _ItemId, Bid}}, State) ->
+  bid_automatically(State, AuctionId, ItemId, Bid);
+handle_info({{AuctionId, auction_event}, {new_bid, ItemId, Bid}}, State) ->
   io:format("AuctionId ~p: Bid ~p~n", [AuctionId, Bid]),
-  {noreply, State};
+  % need to check if there are any automated bids to be triggered
+  bid_automatically(State, AuctionId, ItemId, Bid);
 handle_info({{AuctionId, auction_event}, 
   {item_sold, _ItemId, WinningBid}}, State) ->
   io:format("AuctionId ~p: Item sold. Winning bid ~p~n", 

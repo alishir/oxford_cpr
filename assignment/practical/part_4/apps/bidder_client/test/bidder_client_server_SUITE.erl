@@ -10,6 +10,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -export([all/0, 
+         groups/0,
          init_per_suite/1,
          end_per_suite/1,
          init_per_group/2,
@@ -22,8 +23,11 @@
          test_subscribe/1,
          test_unsubscribe/1,
          test_bid/1,
-         test_auction_messages/1,
-         test_add_automated_bid_to_max/1]).
+         test_auction_messages/1]).
+
+-export([test_add_automated_bid_to_max/1,
+         other_bidder/1, 
+         auction_house/1]).
 
 all() -> 
   [test_start_link,
@@ -33,7 +37,15 @@ all() ->
    test_unsubscribe,
    test_bid,
    test_auction_messages,
-   test_add_automated_bid_to_max].
+   {group, automated_integ}].
+
+groups() ->
+  [{automated_integ, 
+    [], 
+    [{group, automated_integ_components}]},
+   {automated_integ_components, 
+    [parallel], 
+    [test_add_automated_bid_to_max, auction_house, other_bidder]}].
 
 %%% suite setup & tear down ---------------------------------------------------
 init_per_suite(Config) ->
@@ -45,9 +57,25 @@ end_per_suite(_Config) ->
   ok.
 
 %%% group setup & tear down ---------------------------------------------------
+init_per_group(automated_integ, Config) ->
+  BidderName1 = "elon musk",
+  BidderName2 = "jeff bezos",
+  {ok, AuctionId1} = auction_data:create_auction(),
+  ok = pubsub:create_channel(AuctionId1),
+  AuctionItems = 
+    [{"book", "fiction", 1}, {"hat", "blue cap", 0}],
+  {ok, [{_, "hat"}, {ItemId1, "book"}]} = 
+    auction_data:add_items(AuctionId1, AuctionItems),
+  [{auctionid, AuctionId1} |
+    [{itemid, ItemId1} | 
+      [{bidder_names, [BidderName1, BidderName2]} | 
+        Config]]];
 init_per_group(_, Config) ->
   Config.
 
+end_per_group(automated_integ, Config) ->
+  AuctionId = ?config(auctionid, Config),
+  ok = auction_data:remove_auction(AuctionId);
 end_per_group(_, _Config) ->
   ok.
 
@@ -56,6 +84,12 @@ init_per_testcase(test_start_link, Config) ->
   BidderName1 = "elon musk",
   BidderName2 = "jeff bezos",
   [{bidder_names, [BidderName1, BidderName2]} | Config];
+init_per_testcase(test_add_automated_bid_to_max, Config) ->
+  Config;
+init_per_testcase(other_bidder, Config) ->
+  Config;
+init_per_testcase(auction_house, Config) ->
+  Config;
 init_per_testcase(_, Config) ->
   BidderName1 = "elon musk",
   BidderName2 = "jeff bezos",
@@ -68,6 +102,12 @@ init_per_testcase(_, Config) ->
 %%% testcase teardown ---------------------------------------------------------
 end_per_testcase(test_start_link, _Config) ->
   ok;
+end_per_testcase(test_add_automated_bid_to_max, _Config) ->
+  ok;
+end_per_testcase(other_bidder, _Config) ->
+  ok;
+end_per_testcase(auction_house, Config) ->
+  Config;
 end_per_testcase(test_stop, Config) ->
   [_, BidderName2] = ?config(bidder_names, Config),
   ok = bidder_client_server:stop(BidderName2);
@@ -198,11 +238,10 @@ test_auction_messages(Config) ->
     bidder_client_server:bid(BidderName1, AuctionId1, ItemId1, 5),
   ExpectedString3 = lists:flatten(
     io_lib:format("AuctionId ~p: Submitted bid ~p\n", [AuctionId1, 5])),
-  [ExpectedString3] = ct:capture_get(),  
-
   ExpectedString4 = lists:flatten(
     io_lib:format("AuctionId ~p: Bid ~p\n", [AuctionId1, 5])),
-  [ExpectedString4] = ct:capture_get(),  
+  timer:sleep(100),
+  [ExpectedString3, ExpectedString4] = ct:capture_get(),  
 
   timer:sleep(11000),
   ExpectedString5 = lists:flatten(
@@ -221,19 +260,14 @@ test_auction_messages(Config) ->
   ok = auction_data:remove_auction(AuctionId1),
   ok = ct:capture_stop().
 
-test_add_automated_bid_to_max_client_1(Config) ->
-  [BidderName1, BidderName2] = ?config(bidder_names, Config),
-  {ok, AuctionId1} = auction_data:create_auction(),
-  ok = pubsub:create_channel(AuctionId1),
-  AuctionItems = 
-    [{"book", "fiction", 1}, {"hat", "blue cap", 0}],
-  {ok, [{_, "hat"}, {ItemId1, "book"}]} = 
-    auction_data:add_items(AuctionId1, AuctionItems),
+test_add_automated_bid_to_max(Config) ->
+  [BidderName1, _] = ?config(bidder_names, Config),
+  AuctionId1 = ?config(auctionid, Config),
+  ItemId1 = ?config(itemid, Config),
+  {ok, _} = bidder_client_server:start_link(BidderName1),
   {ok, _} = bidder_client_server:subscribe(BidderName1, AuctionId1),
-  {ok, _} = bidder_client_server:subscribe(BidderName1, AuctionId1),
-  {ok, _AuctionPid} = auction:start_link(AuctionId1),
-  timer:sleep(1000), % need to pause to avoid receiving start_link messages
-
+  timer:sleep(2000),  % need to pause to avoid capturing start_link messages
+  % 2s
   ok = ct:capture_start(),
   {ok, leading} = bidder_client_server:add_automated_bid_to_max(
     BidderName1, AuctionId1, ItemId1, 3, 10),
@@ -249,11 +283,47 @@ test_add_automated_bid_to_max_client_1(Config) ->
   [ExpectedString1, ExpectedString2, ExpectedString3, ExpectedString4] = 
     ct:capture_get(),  
 
+  timer:sleep(2000),
+  % 4s
+  ExpectedString5 = lists:flatten(
+    io_lib:format("AuctionId ~p: Bid ~p\n", [AuctionId1, 5])),
+  ExpectedString6 = lists:flatten(  
+    io_lib:format("AuctionId ~p: Submitted bid ~p\n", [AuctionId1, 6])),
+  ExpectedString7 = lists:flatten(
+    io_lib:format("AuctionId ~p: Bid ~p\n", [AuctionId1, 6])),
+  [ExpectedString5, ExpectedString6, ExpectedString7] = ct:capture_get(),
+
+  timer:sleep(2000),
+  % 6s other bidder bids 10 and 10 is maximum so no counter-bid
+  ExpectedString8 = lists:flatten(
+    io_lib:format("AuctionId ~p: Bid ~p\n", [AuctionId1, 10])),
+  [ExpectedString8] = ct:capture_get(),
+
+  ok = bidder_client_server:stop(BidderName1),
+  ok = ct:capture_stop().
+
+auction_house(Config) ->
+  AuctionId1 = ?config(auctionid, Config),
+  timer:sleep(1000), % need to pause to make sure other_bidder has subscribed
+  % 1s 
+  {ok, AuctionPid} = auction:start_link(AuctionId1),
+  unlink(AuctionPid). % auction will not die even though auction_house does.
+
+other_bidder(Config) ->
+  [_, BidderName2] = ?config(bidder_names, Config),
+  AuctionId1 = ?config(auctionid, Config),
+  ItemId1 = ?config(itemid, Config),
+  {ok, _} = bidder_client_server:start_link(BidderName2),
+  {ok, _} = bidder_client_server:subscribe(BidderName2, AuctionId1),
+  timer:sleep(3000),
+  % 3s
   {ok, leading} = 
     bidder_client_server:bid(BidderName2, AuctionId1, ItemId1, 5),
-  ExpectedString5 = lists:flatten(
-    io_lib:format("AuctionId ~p: Submitted bid ~p\n", [AuctionId1, 5])),
-  [ExpectedString5] = ct:capture_get(),  
 
-  ok = auction_data:remove_auction(AuctionId1),
+  % 5s
+  timer:sleep(2000),
+  {ok, leading} = 
+    bidder_client_server:bid(BidderName2, AuctionId1, ItemId1, 10),
+    
+  ok = bidder_client_server:stop(BidderName2),
   ok = ct:capture_stop().
