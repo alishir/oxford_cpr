@@ -1,0 +1,17 @@
+{application, auction_server,
+ [{description, "Auction server backend"},
+  {vsn, "0.1.0"},
+  % {registered, [auction_server]},
+  {registered, []},
+  {mod, {auction_server, []}},
+  {applications,
+   [kernel,
+    stdlib
+    % auction_data
+   ]},
+  {env,[]},
+  {modules, [auction_server, auction_server_sup, auction_sup, auction, 
+    pubsub_sup, pubsub, channel_feed]},
+  {licenses, ["Apache 2.0"]},
+  {links, []}
+ ]}.

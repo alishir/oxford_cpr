@@ -110,7 +110,7 @@ test_start_link(_Config) ->
 test_start_auction(Config) ->
   [AuctionId1, AuctionId2, AuctionId3] = ?config(auction, Config),
   SupervisorPid = ?config(supervisor, Config),
-  [ItemId1, ItemId3] = ?config(item_ids, Config),
+  [ItemId1, _ItemId3] = ?config(item_ids, Config),
   InvalidAuctionId = make_ref(),
   % invalid auction id
   {error, unknown_auction} = auction_sup:start_auction(InvalidAuctionId),
