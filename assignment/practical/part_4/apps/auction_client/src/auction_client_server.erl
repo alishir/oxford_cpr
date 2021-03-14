@@ -1,11 +1,11 @@
 %%%----------------------------------------------------------------------------
-%% File: bidder_client.erl
+%% File: auction_client.erl
 %% @author Nicholas Drake
 %% @doc Bidder Client server
 %% @end
 %%%----------------------------------------------------------------------------
 
--module(bidder_client_server).
+-module(auction_client_server).
 
 -behaviour(gen_server).
 

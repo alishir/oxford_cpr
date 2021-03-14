@@ -1,10 +1,10 @@
 %%%----------------------------------------------------------------------------
-%% File: bidder_client_server_sup.erl
+%% File: auction_client_server_sup.erl
 %% @author Nicholas Drake
 %% @doc Bidder client supervisor.
 %% @end
 %%%----------------------------------------------------------------------------
--module(bidder_client_server_sup).
+-module(auction_client_server_sup).
 
 -behaviour(supervisor).
 
@@ -26,7 +26,7 @@ init([BidderName]) ->
     SupFlags = #{strategy => one_for_all,
                  intensity => 3,
                  period => 1},
-    ChildSpecs = [{bidder_client_child, 
-                  {bidder_client_server, start_link, [BidderName]},
-                  transient, 1000, worker, [bidder_client_server]}],
+    ChildSpecs = [{auction_client_child, 
+                  {auction_client_server, start_link, [BidderName]},
+                  transient, 1000, worker, [auction_client_server]}],
     {ok, {SupFlags, ChildSpecs}}.
