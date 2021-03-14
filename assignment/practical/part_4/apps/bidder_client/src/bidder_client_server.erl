@@ -10,7 +10,7 @@
 -behaviour(gen_server).
 
 -export([start_link/1, stop/1, get_auctions/1, subscribe/2, unsubscribe/2, 
-         bid/4]). 
+         bid/4, add_automated_bid_to_max/5]). 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, code_change/3, 
          terminate/2]).
 
@@ -47,8 +47,46 @@ unsubscribe(BidderName, AuctionId) ->
   {ok, leading | {not_leading, non_neg_integer()}} | 
   {error, invalid_auction | invalid_item | auction_ended | item_already_sold}.
 bid(BidderName, AuctionId, ItemId, Bid) ->
+  gen_server:call({global, BidderName}, {bid, AuctionId, ItemId, Bid}).
+
+-spec add_automated_bid_to_max(nonempty_string(), reference(), itemid(), 
+  non_neg_integer(), non_neg_integer()) ->
+  {ok, leading | {not_leading, non_neg_integer()}} | 
+  {error, invalid_auction | invalid_item | auction_ended | item_already_sold}.
+add_automated_bid_to_max(BidderName, AuctionId, ItemId, StartBid, MaxBid) ->
   gen_server:call({global, BidderName}, 
-                  {bid, AuctionId, ItemId, Bid}).
+                  {add_automated_bid_to_max, AuctionId, ItemId, StartBid, 
+                   MaxBid}),
+  gen_server:call({global, BidderName}, 
+                   {bid, AuctionId, ItemId, StartBid}).
+
+%%% Private functions ---------------------------------------------------------
+automated_bid(BidderName, AuctionId, ItemId, Bid, From) ->
+  spawn(fun() ->
+    BidResponse = 
+      gen_server:call({global, BidderName}, {bid, AuctionId, ItemId, Bid}),
+    gen_server:reply(From, BidResponse)
+  end).
+
+bid_automatically(State, AuctionId, ItemId, Bid) ->
+  AutomatedBiddingMap = maps:get(automated_bidding, State),
+  case maps:get(ItemId, AutomatedBiddingMap, undefined) of
+    undefined ->
+      {noreply, State}; % do nothing as no automated bid for this item
+    {_From, Bid, _MaxBid} -> % last bid is our bid (tho race conditions)
+      {noreply, State};
+    {From, _LastBid, MaxBid} ->
+      if 
+        Bid + 1 =< MaxBid ->
+          {BidderName, _} = maps:get(bidder, State),
+          automated_bid(BidderName, AuctionId, ItemId, Bid + 1, From),
+          UpdatedAutomatedBiddingMap = 
+            AutomatedBiddingMap#{ItemId := {From, Bid + 1, MaxBid}},
+          {noreply, State#{automated_bidding := UpdatedAutomatedBiddingMap}};
+        true ->
+          {noreply, State} % do nothing as too high
+      end
+  end.
 
 %%% Gen StateM Callbacks ------------------------------------------------------
 init([Bidder]) ->
@@ -85,7 +123,7 @@ handle_call({bid, AuctionId, ItemId, Bid}, _From, State) ->
   AuctionIdPidMap = maps:get(auction_id_to_pid_map, State),
   case maps:get(AuctionId, AuctionIdPidMap, undefined) of
     undefined ->
-      io:format("AuctionId ~p: Unknown auction~n", [AuctionId]),
+      io:format("AuctionId ~p: Auction not yet started~n", [AuctionId]),
       Result = {error, invalid_auction};
     AuctionPid ->
       Bidder = maps:get(bidder, State),
@@ -93,6 +131,14 @@ handle_call({bid, AuctionId, ItemId, Bid}, _From, State) ->
       Result = auction:bid(AuctionPid, AuctionId, ItemId, Bid, Bidder)
   end,
   {reply, Result, State};
+handle_call({add_automated_bid_to_max, AuctionId, ItemId, StartBid, MaxBid}, 
+  From, State) ->
+  AutomatedBiddingMap = maps:get(automated_bidding, State),
+  UpdatedAutomatedBiddingMap = 
+    maps:put(ItemId, {From, StartBid, MaxBid}, AutomatedBiddingMap),
+  io:format("AuctionId ~p: Added automatic bid.~n", [AuctionId]),
+  io:format("              Start bid: ~p, Max bid: ~p~n", [StartBid, MaxBid]),
+  {reply, ok, State#{automated_bidding := UpdatedAutomatedBiddingMap}};
 handle_call(_Call, _From, State) ->
   {noreply, State}.
 
@@ -102,15 +148,19 @@ handle_cast(_Cast, State) ->
 handle_info(
   {{AuctionId, auction_event}, {auction_started, AuctionPid}}, State) ->
   io:format("AuctionId ~p: Started~n", [AuctionId]),
-  {noreply, State#{auction_id_to_pid_map := #{AuctionId => AuctionPid}}};
+  AuctionIdPidMap = maps:get(auction_id_to_pid_map, State),
+  UpdatedAuctionIdPidMap = maps:put(AuctionId, AuctionPid, AuctionIdPidMap),
+  {noreply, State#{auction_id_to_pid_map := UpdatedAuctionIdPidMap}};
 handle_info({{AuctionId, auction_event}, 
-  {new_item, _ItemId, Description, Bid}}, State) ->
+  {new_item, ItemId, Description, Bid}}, State) ->
   io:format("AuctionId ~p: New item ~s with starting bid ~p~n", 
     [AuctionId, Description, Bid]),
-  {noreply, State};
-handle_info({{AuctionId, auction_event}, {new_bid, _ItemId, Bid}}, State) ->
+  % need to check if there are any automated bids to be triggered
+  bid_automatically(State, AuctionId, ItemId, Bid);
+handle_info({{AuctionId, auction_event}, {new_bid, ItemId, Bid}}, State) ->
   io:format("AuctionId ~p: Bid ~p~n", [AuctionId, Bid]),
-  {noreply, State};
+  % need to check if there are any automated bids to be triggered
+  bid_automatically(State, AuctionId, ItemId, Bid);
 handle_info({{AuctionId, auction_event}, 
   {item_sold, _ItemId, WinningBid}}, State) ->
   io:format("AuctionId ~p: Item sold. Winning bid ~p~n", 
