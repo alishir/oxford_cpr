@@ -38,5 +38,5 @@ test_start_link(_Config) ->
 
 test_stop(_Config) ->
   BidderName2 = "jeff bezos",
-  {ok, ChildPid} = bidder_client_server_sup:start_link(BidderName2),
+  {ok, _ChildPid} = bidder_client_server_sup:start_link(BidderName2),
   true = bidder_client_server_sup:stop(BidderName2).
