@@ -210,6 +210,8 @@ test_bid(Config) ->
   ExpectedString1 = lists:flatten(
     io_lib:format("AuctionId ~p: Submitted bid ~p\n", [AuctionId1, 5])),
   [ExpectedString1] = ct:capture_get(),  
+
+  ok = auction_data:remove_auction(AuctionId1),
   ok = ct:capture_stop().
 
 test_auction_messages(Config) ->
@@ -307,7 +309,9 @@ auction_house(Config) ->
   timer:sleep(1000), % need to pause to make sure other_bidder has subscribed
   % 1s 
   {ok, AuctionPid} = auction:start_link(AuctionId1),
-  unlink(AuctionPid). % auction will not die even though auction_house does.
+  unlink(AuctionPid), % auction will not die even though auction_house does
+  timer:sleep(6000).
+  % supervisor:terminate_child(?MODULE, AuctionPid).
 
 other_bidder(Config) ->
   [_, BidderName2] = ?config(bidder_names, Config),
