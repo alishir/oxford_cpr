@@ -1,15 +1,16 @@
 {application, bidder_client,
- [{description, "An OTP application"},
+ [{description, "Distributed bidder client"},
   {vsn, "0.1.0"},
-  {registered, []},
+  {registered, [bidder_client]},
   {mod, {bidder_client, []}},
   {applications,
    [kernel,
-    stdlib
+    stdlib,
+    auction_data,
+    auction_server
    ]},
   {env,[]},
-  {modules, []},
-
+  {modules, [bidder_client, bidder_client_server_sup, bidder_client_server]},
   {licenses, ["Apache 2.0"]},
   {links, []}
  ]}.
