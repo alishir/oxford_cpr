@@ -7,9 +7,8 @@
    [kernel,
     stdlib
    ]},
-  {env,[]},
+  {env, []},
   {modules, [auction_client, auction_client_server_sup, auction_client_server]},
-  {modules, []},
   {licenses, ["Apache 2.0"]},
   {links, []}
  ]}.
