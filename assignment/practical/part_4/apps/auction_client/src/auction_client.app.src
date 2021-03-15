@@ -1,17 +1,14 @@
 {application, auction_client,
  [{description, "Distributed bidder client"},
   {vsn, "0.1.0"},
-  % {registered, [auction_client]},
-  {registered, []},
+  {registered, [auction_client]},
   {mod, {auction_client, []}},
   {applications,
    [kernel,
     stdlib
-    % auction_server
    ]},
-  {env,[]},
+  {env, []},
   {modules, [auction_client, auction_client_server_sup, auction_client_server]},
-  {modules, []},
   {licenses, ["Apache 2.0"]},
   {links, []}
  ]}.

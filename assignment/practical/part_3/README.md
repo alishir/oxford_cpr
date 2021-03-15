@@ -1,5 +1,5 @@
-pubsub
-=====
+part_3
+======
 
 An OTP application
 
@@ -10,12 +10,5 @@ Build
 
 Test
 ----
-
     $ cd practical/part_3
     $ rebar3 ct
-
-Test (with messages)
---------------------
-
-    $ cd practical/part_3
-    $ rebar3 ct --verbose

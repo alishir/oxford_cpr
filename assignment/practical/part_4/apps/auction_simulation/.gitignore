@@ -7,6 +7,7 @@ _*
 *.swp
 *.swo
 .erlang.cookie
+ebin
 log
 erl_crash.dump
 .rebar
@@ -16,3 +17,5 @@ _build
 *.iml
 rebar3.crashdump
 *~
+simulation_logs/*
+!simulation_logs/.please-track-this

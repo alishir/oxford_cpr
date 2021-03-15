@@ -284,6 +284,10 @@ test_add_automated_bid_to_max(Config) ->
   timer:sleep(100), % need to pause to make sure all the messages arrive
   [ExpectedString1, ExpectedString2, ExpectedString3, ExpectedString4] = 
     ct:capture_get(),  
+  ct:print(ExpectedString1),
+  ct:print(ExpectedString2),
+  ct:print(ExpectedString3),
+  ct:print(ExpectedString4),
 
   timer:sleep(2000),
   % 4s
@@ -294,12 +298,16 @@ test_add_automated_bid_to_max(Config) ->
   ExpectedString7 = lists:flatten(
     io_lib:format("AuctionId ~p: Bid ~p\n", [AuctionId1, 6])),
   [ExpectedString5, ExpectedString6, ExpectedString7] = ct:capture_get(),
+  ct:print(ExpectedString5),
+  ct:print(ExpectedString6),
+  ct:print(ExpectedString7),
 
   timer:sleep(2000),
   % 6s other bidder bids 10 and 10 is maximum so no counter-bid
   ExpectedString8 = lists:flatten(
     io_lib:format("AuctionId ~p: Bid ~p\n", [AuctionId1, 10])),
   [ExpectedString8] = ct:capture_get(),
+  ct:print(ExpectedString8),
 
   ok = auction_client_server:stop(BidderName1),
   ok = ct:capture_stop().

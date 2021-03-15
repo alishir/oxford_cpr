@@ -1,6 +1,7 @@
 {application, auction_data,
  [{description, "Auction Data API"},
   {vsn, "0.1.0"},
+  {registered, [auction_data]},
   {applications,
    [kernel,
     stdlib,
